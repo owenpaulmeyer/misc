@@ -1,0 +1,5 @@
+*_split
+*.p_hi
+*.p_o
+*.hs.tmp
+*.raw-hs

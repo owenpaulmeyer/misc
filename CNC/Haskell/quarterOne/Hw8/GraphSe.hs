@@ -1,0 +1,452 @@
+--module GraphSe (Graph, makeGraph, makeDiGraph, showGraph, vertices, edges, adjacent, isAdjacent) where
+
+import SetOL
+import Control.Monad.State
+import Control.Monad.Reader
+import Control.Monad.Identity
+import Control.Monad.Error
+import Control.Monad.Writer
+import Data.List hiding (null,insert,delete)
+import qualified Data.Map as Map
+
+newtype Graph a = Graph (Set a, Set (a,a) )
+
+
+makeGraph :: Ord a => [a] -> [(a,a)] -> Graph a
+makeGraph nodes edges = Graph (fromList nodes, fromList edgeSet)
+	where
+		edgeSet = edges ++ (map (\(n1,n2) -> (n2,n1)) edges)
+
+makeDiGraph :: Ord a => [a] -> [(a,a)] -> Graph a
+makeDiGraph nodes edges = Graph (fromList nodes, fromList edges)
+
+instance Show a => Show (Graph a) where
+	show (Graph (a, b)) = "Graph " ++ "("++ show a ++","++ show b ++")"
+
+showGraph :: Ord a => Graph a -> ([a],[(a,a)])
+showGraph (Graph (a,b)) = (toList a,toList b)
+
+vertices :: Ord a => Graph a -> [a]
+vertices (Graph (a,_)) = toList a
+
+edges :: Ord a => Graph a -> [(a,a)]
+edges (Graph (_,es)) = toList es
+
+adjacent :: Ord a => Graph a -> a -> [a]
+adjacent (Graph (vs,es)) node = [snd n|n <- toList es, fst n==node]
+
+isAdjacent :: Ord a => Graph a -> a -> a -> Bool
+isAdjacent (Graph (vs,es)) n1 n2 = or [n1==a|(a,b) <- toList es, b==n2]
+
+
+g6 :: Graph Int			-- has euler path
+g6 = makeGraph [1..6]
+          [(1,2),(1,3),(2,6),(2,3),(3,4),(3,5),(4,5),(5,6)]
+g7 = makeDiGraph  [1..6]
+          [(1,2),(1,3),(2,6),(2,3),(3,4),(3,5),(4,5),(5,6),(6,1),(1,5)]
+path = [2,3,4,5,6,1]
+g8 = makeGraph [1..12] [(1,2),(1,3),(2,4),(2,5),(3,6),(3,7),(3,8),(4,9),(4,10),(5,11),(5,12)]
+
+gdb = makeGraph [1..15] [(1,2),(2,3),(2,4),(3,5),(3,4),(4,6),(5,6),(5,8),(6,9),(8,7),(8,10),(9,11),(10,11),(10,12),(11,13),(12,13),(12,14),(13,14),(14,15)]
+
+eulTest = makeGraph [1..9] [(1,2),(1,4),(4,5),(2,5),(3,5),(3,6),(6,5),(5,7),(7,8),(5,8),(6,8),(6,9),(9,12),(8,10),(10,12),(8,9),(3,9),(8,3)]
+
+outdegree :: Ord a => Graph a -> a -> Int
+outdegree (Graph (nodes,edges)) node = length [n|(n,e) <- toList edges,node == n]
+
+indegree :: Ord a => Graph a -> a -> Int
+indegree (Graph (nodes,edges)) node = length [n|(n,e) <- toList edges,node == e]
+
+degree :: Ord a => Graph a -> a -> Int
+degree g n = indegree g n + outdegree g n
+
+type Path a = [a]
+
+isPath :: Ord a => Graph a -> Path a -> Bool
+isPath g p = case runState (iP p) g of
+	(b,_) -> b
+iP (n1:n2:[]) =
+	do {
+		g <- get;
+		case g of
+			(Graph (nodes,edges)) ->
+				if (n1,n2) `elem` toList edges then return True
+					else return False;}
+iP (n1:n2:nps) =
+	do {
+		(Graph (nodes,edges)) <- get;
+		if (n1,n2) `elem` toList edges then iP (n2:nps)
+			else return False;}
+
+isSimple :: Ord a => Graph a -> Path a -> Bool
+isSimple g path
+	|isPath g path = length (nub path) == length path
+	|otherwise = False
+
+-------------------------------------------------------------------------
+--Euler circuit:
+
+type Efs st1 st2 b a = ReaderT (Graph b) (ErrorT String (WriterT [a] 
+	(StateT st1 (StateT st2 IO)))) a
+
+--setEul :: Ord a => Graph a -> ((Either String [a], [[a]]), ([a], [a]))
+setEul :: (Show a, Ord a) => Graph a -> IO ((Either String [a], [[a]]), ([a], [a]))
+setEul g =  (runStateT (evalStateT (runWriterT (runErrorT (runReaderT euler g))) []) ([],[])) 
+
+
+euler :: (Show a, Ord a) => Efs [(a,a)] ([a],[a]) a  [a]  
+euler  =
+	do
+		(Graph (nodes,edges)) <- ask
+		put $toList edges
+		let u = head (toList nodes) in
+			lift.lift.lift.lift $ modify (\(cs,ps) -> (u:cs,ps))
+		outerLoop
+
+outerLoop :: (Show a, Ord a) => Efs [(a,a)] ([a],[a]) a [a]
+outerLoop =
+	do
+		edges <- get
+		if edges==[] then
+			return []
+		else oL
+
+oL :: (Show a, Ord a) => Efs [(a,a)] ([a],[a]) a [a]
+oL =
+	do
+		e <- get
+		(c,p) <- lift.lift.lift.lift $ get
+		if listHasIncident c e then
+			do
+				v <- incidentNode c e
+				lift.lift.lift.lift $ put (c,v:[]) --path P is set to just V
+				innerLoop v
+				(cs,ps) <- lift.lift.lift.lift $ get
+				case (replace ps cs) of
+					Nothing -> throwError "no Euler circuit here"
+					Just swap ->
+						lift.lift.lift.lift $ put (swap,[])
+				outerLoop
+		else
+			return []
+
+innerLoop :: (Show a, Ord a) => a -> Efs [(a,a)] ([a],[a]) a [a]
+innerLoop w =
+	do
+		e <- get
+		(cs,ps) <- lift.lift.lift.lift $ get
+		if nodeHasIncident w e then
+			do
+				liftIO $ putStr "here"
+				(n1,n2) <- incidentEdge w e
+				put $ removeEdge (n1,n2) e
+				lift.lift.lift.lift $ put (cs,n2:ps)
+				liftIO $ print (n2:ps)
+--				tell [n2:ps]
+				innerLoop n2
+		else
+			if (head ps)==(last ps) then
+				return []
+			else throwError "no Euler circuit!"
+
+adj :: (Ord t, Monad m) => Graph t -> t -> m [t]
+adj (Graph (vs,es)) node = return [snd n|n <- toList es, fst n==node]
+
+listHasIncident :: Ord a => [a]   -> [(a,a)]   -> Bool
+listHasIncident cs es = or [c==e1|c <- cs, (e1,e2) <- es]
+
+nodeHasIncident :: Ord a => a -> [(a,a)] -> Bool
+nodeHasIncident _ [] = False
+nodeHasIncident n ((e1,e2):edges)
+	|n==e1 = True
+	|otherwise = nodeHasIncident n edges
+
+incidentNode :: (Ord a, Monad m) => [a] -> [(a,a)] -> m a
+incidentNode nodes edges = return $ head [n|n <- nodes, (e1,e2) <- edges, n==e1]
+
+incidentEdge :: (Ord a, Monad m) => a -> [(a,a)] -> m (a,a)
+incidentEdge n ((e1,e2):edges)
+	|n==e1 = return (e1,e2)
+	|otherwise = incidentEdge n edges
+
+removeEdge :: Ord a => (a,a) -> [(a,a)] -> [(a,a)]
+removeEdge (n1,n2) edges = [(e1,e2)|(e1,e2) <- edges,(e1,e2)/=(n1,n2)&&(e1,e2)/=(n2,n1)]
+
+replace :: (Ord a) => [a] -> [a] -> Maybe [a]
+replace y@(p:ps) (c:cs)
+	|p==c = Just (y++cs)
+	|otherwise = fmap (c:) $ replace y cs
+replace _ _ = Nothing
+
+replace' :: (Ord a) => a -> [a] -> [a] -> Maybe [a]
+replace' v ps (c:cs) 
+	|v==c = Just $ ps++cs
+	|otherwise = fmap (c:) $ replace' v ps cs
+replace' _ _ _ = Nothing
+
+--end Euler circuit
+-------------------------------------------------------------
+
+------------------------------------------------------------------
+--unvisitedAdjacent
+uV n ns g = [adj|adj <- (adjacent g n), not(elem adj ns)]
+
+depthFirst :: Ord a => Graph a -> a -> [a]
+depthFirst g@(Graph (nodes,edges)) s =
+	case runState (dF ) (g,delete s nodes,[s],[s]) of
+		(s,(g,a,b,c)) -> reverse c
+
+--either finished or not
+dF :: Ord a =>  State (Graph a, Set a, [a], [a]) [a]
+dF  =
+	do
+		st1 <- get
+		case st1 of
+			(_,_,[],visited)    -> return visited
+			_ -> cF
+
+--either forward or backtrack
+cF :: Ord a => State (Graph a,Set a,[a],[a]) [a]
+cF =
+	do
+		(g,nodes,track,visited) <- get
+		case uV (head track) visited g of
+			[] -> do
+				put (g,nodes,tail track,visited)
+				dF
+			(v:vis) -> do
+				put (g,(delete v nodes),v:track,v:visited)
+				dF
+-----------------------------------------------------------------
+
+dfsL :: Ord a => Graph a -> a -> [a] --([a],([a],[a],Graph a))
+dfsL g r = case runState dfs ([r],[],g) of
+	(a,b) -> reverse a
+
+dfs :: Ord a => State ([a],[a],Graph a) [a]
+dfs = do
+		st <- get
+		case st of
+			([],visited,_) -> return visited
+			(r,v,g)        -> dvisit st
+
+dvisit :: Ord a => ([a],[a],Graph a) -> State ([a],[a],Graph a) [a]
+dvisit (r:rs,v,g)
+	|elem r v =
+		do
+			put (rs,v,g)
+			dfs
+	|otherwise =
+		do
+			put (adjacent g r++rs,r:v,g)
+			dfs
+
+--------------------------------------------------------------
+follow as = flow as 0
+	where
+		flow ((a,b):[]) n = n
+		flow ((a,b):(c,d):rest) n
+			|b==c = flow ((c,d):rest) (n+1)
+			|otherwise = flow ((a,b):rest) n
+
+for [] fa = return ()
+for (n:ns) fa = fa n >> for ns fa
+
+flor as fa = snd$runState (foor as fa) []
+--flor [1..6] (\a->(set g6( short a))) 
+
+foor [] fa = do {a <- get; return []}
+foor (n:ns) fa = do{modify ((fa n):); foor ns fa;}
+--runState (foor [1..6] (\a->(set g6( short a))) ) []
+--for [1..6] (\a->putStr (show(set g6( short a))))
+{-
+ground :: (Ord a) => Graph a -> Bfs [a]
+ground g = do
+		(nodes, edges) <- ask
+		return send short g nodes
+-}
+--send _ [] = return []
+send bf g (n:ns) = do
+	return (set g(bf n)):send bf g ns
+
+--short :: (Ord a) => a -> Bfs a
+short n = do
+	put ([(n,0)],[])
+	bfs
+
+set g bf = runIdentity (evalStateT (evalStateT (runReaderT bf g) ([],[]) )0)
+--	(a,b) -> a
+
+--------------------------------------------------------------
+
+
+
+type Bfs st1 st2 b a = ReaderT (Graph b) (StateT st1 (StateT st2 Identity)) a
+
+
+
+runBfs :: (Ord a, Num a) => a -> Int -> Graph a -> ([(a, a)], Int)
+runBfs s s2 g = runIdentity (runStateT (evalStateT (runReaderT bfs g) ([(s,0)],[])) s2)
+
+
+bfs :: (Ord a) => Bfs ([(a,a)],[(a,a)]) Int a [(a,a)] 
+bfs = do
+		st <- get
+		case st of
+			([],visited) -> return visited
+			_        -> bvisit st
+
+bvisit :: (Ord a) => ([(a,a)],[(a,a)]) -> Bfs ([(a,a)],[(a,a)]) Int a [(a,a)]
+bvisit ((r,p):rs,v)
+	|elem' r v =
+		do
+			put (rs,v)
+			bfs
+	|otherwise =
+		do
+			g <- ask
+			adjs <- adj g r
+			put (rs++(map (\a -> (a,r)) adjs),(r,p):v) --attatches the previous (r) to the adjacents (a)
+			if v==[] then
+				lift (lift (modify id))
+			else
+				if not (snd (head v)==p) then
+					lift (lift (modify (+1)))
+			else lift $ lift $ modify (id)	
+			bfs
+
+elem' _ [] = False
+elem' r ((v,p):vs)
+	|r == v = True
+	|otherwise = elem' r vs
+{-
+type Bfs a = ReaderT (Graph a) (StateT ([(a,a)],[(a,a)]) Identity) [(a,a)]
+
+runBfs :: Graph r -> s -> ReaderT (Graph r) (StateT ([(s,s)],[(s,s)]) Identity) a -> a
+runBfs g s bf = case runIdentity (runStateT (runReaderT bf g) ([(s,s)],[])) of
+	(a,b) -> a
+--example:
+--runBfs g6 3 bfs
+
+
+bfs :: (Ord a) => Bfs a
+bfs = do
+		st <- get
+		case st of
+			([],visited) -> return visited
+			_        -> bvisit st
+
+bvisit :: (Ord a) => ([(a,a)],[(a,a)]) -> Bfs a
+bvisit ((r,p):rs,v)
+	|elem' r v =
+		do
+			put (rs,v)
+			bfs
+	|otherwise =
+		do
+			g <- ask
+			put (rs++(map (\a -> (a,r))(adjacent g r)),(r,p):v)
+			bfs
+
+elem' _ [] = False
+elem' r ((v,p):vs)
+	|r == v = True
+	|otherwise = elem' r vs
+
+-}
+{-
+type Env a = Graph a
+type Bfs a = (ReaderT (Graph a) Identity) [(a,a)]
+runBfs :: r -> ReaderT r Identity a -> a
+runBfs g bf = runIdentity (runReaderT bf g)
+
+bfsL r = bfs ([(r,r)],[])
+
+bfs :: (Ord a) => ([(a,a)],[(a,a)]) -> Bfs a
+bfs st = do
+		case st of
+			([],visited) -> return visited
+			_        -> bvisit st
+
+bvisit :: (Ord a) => ([(a,a)],[(a,a)]) -> Bfs a
+bvisit ((r,p):rs,v)
+	|elem' r v =
+		do
+			bfs (rs,v)
+	|otherwise =
+		do
+			g <- ask
+			bfs (rs++(map (\a -> (a,r))(adjacent g r)),(r,p):v)
+
+elem' _ [] = False
+elem' r ((v,p):vs)
+	|r == v = True
+	|otherwise = elem' r vs
+
+
+type Bfs a = Identity [(a,a)]
+runBfs :: Identity a -> a
+runBfs bf = runIdentity bf
+
+bfsL g r = bfs ([(r,r)],[],g)
+
+bfs :: (Ord a) => ([(a,a)],[(a,a)],Graph a) -> Bfs a
+bfs st = do
+		case st of
+			([],visited,_) -> return visited
+			_        -> bvisit st
+
+bvisit :: (Ord a) => ([(a,a)],[(a,a)],Graph a) -> Bfs a
+bvisit ((r,p):rs,v,g)
+	|elem' r v =
+		do
+			bfs (rs,v,g)
+	|otherwise =
+		do
+			bfs (rs++(map (\a -> (a,r))(adjacent g r)),(r,p):v,g)
+elem' _ [] = False
+elem' r ((v,p):vs)
+	|r == v = True
+	|otherwise = elem' r vs
+-}
+------------------------------
+{-
+bfsL :: (Ord a) => Graph a -> a -> [(a,a)] --([a],([a],[a],Graph a))
+bfsL g r = case runState bfs ([(r,r)],[],g) of
+	(a,b) -> reverse a
+
+bfs :: (Ord a) => State ([(a,a)],[(a,a)],Graph a) [(a,a)]
+bfs = do
+		st <- get
+		case st of
+			([],visited,_) -> return visited
+			_        -> bvisit st
+
+bvisit :: (Ord a) => ([(a,a)],[(a,a)],Graph a) -> State ([(a,a)],[(a,a)],Graph a) [(a,a)]
+bvisit ((r,p):rs,v,g)
+	|elem' r v =
+		do
+			put (rs,v,g)
+			bfs
+	|otherwise =
+		do
+			put (rs++(map (\a -> (a,r))(adjacent g r)),(r,p):v,g)
+			bfs
+
+elem' _ [] = False
+elem' r ((v,p):vs)
+	|r == v = True
+	|otherwise = elem' r vs
+
+
+
+data Previous a = P (Prev a)
+data Prev a = Prev a | Start
+instance Show a => Show (Prev a) where
+	show Start = "Start"
+	show (Prev a) = show a
+instance Show a => Show (Previous a) where
+	show (P a) = show a
+
+
+-}

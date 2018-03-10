@@ -1,0 +1,94 @@
+import Parsing
+import Control.Applicative
+import Control.Monad (MonadPlus (..), ap)
+
+data Expr = Lit Int
+          | Op BinOp Expr Expr
+data BinOp = Add | Sub | Mul | Div deriving Eq
+
+instance Applicative Parser where
+	pure = return
+	(<*>) = ap
+
+instance Alternative Parser where
+	empty = mzero
+	(<|>) = mplus
+
+
+instance Functor Parser where
+	fmap f p = P (\inp -> case parse p inp of
+								[]        -> []
+								[(v,out)] -> [(f v,out)] )
+
+
+instance Show Expr where
+	show (Lit i) = show i
+	show (Op b x y)
+		|b==Mul || b==Div = show x++show b++show y
+		|otherwise        = "("++show x++show b++show y++")"
+
+instance Show BinOp where
+	show Add = "+"
+	show Sub = "-"
+	show Mul = "*"
+	show Div = "/"
+
+size :: Expr -> Int
+size (Lit i) = 0
+size (Op o e1 e2) = 1+size e1+size e2
+
+--eval :: Expr -> Float
+eval (Lit i) = fromIntegral i
+eval (Op o e1 e2)
+	|o==Add = eval e1+eval e2
+	|o==Sub = eval e1-eval e2
+	|o==Mul = eval e1*eval e2
+	|o==Div = eval e1/eval e2
+
+
+
+topExpr =
+	do {
+		e1 <- expr;
+	do {
+		e2 <- expr;
+		return (Op Add e1 e2)
+		}
+	+++
+	return e1
+		}
+
+expr =
+	do {
+		n1 <- nat;
+	do {
+		symbol "+";
+		n2 <- nat;
+		return (Op Add (Lit n1) (Lit n2))
+		}
+	+++
+	return (Lit n1)
+		}
+
+exps =
+	do {
+		n <- natural;
+		ns <- many (do {symbol "+"; nn <- natural; return (Lit nn)}
+					+++ do{symbol "-"; nn <- natural; return (Lit nn)});
+		return (foldl (Op Add) (Lit n) ns)
+		}
+	+++
+	do {
+		n <- natural;
+		ns <- many (do {symbol "-"; nn <- natural; return (Lit nn)});
+		return (foldl (Op Sub) (Lit n) ns)
+		}
+
+value [(n,_)] = eval n
+
+plusmin =
+	do {
+		p <- symbol "+";
+		m <- symbol "-";
+		return p +++ return m
+		}

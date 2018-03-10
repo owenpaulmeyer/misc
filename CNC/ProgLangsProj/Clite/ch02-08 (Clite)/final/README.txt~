@@ -1,0 +1,58 @@
+
+Begin type checking...
+Type map:
+Identifier: f type: int
+Identifier: t type: char
+Identifier: n type: int
+Identifier: fa type: float
+Identifier: i type: int
+
+Program (abstract syntax):
+
+  Declarations:  {<int: n> <int: i> <int: f> <float[5]: fa> <char: t> }
+
+  Statements:
+    Assignment:
+      Target:
+        Variable: n
+      Source:
+        IntVal: 3
+    Assignment:
+      Target:
+        Variable: i
+      Source:
+        IntVal: 1
+    Assignment:
+      Target:
+        Variable: f
+      Source:
+        IntVal: 1
+    Assignment:
+      Target:
+        Array: fa[int: 4]
+      Source:
+        Unary: (I2F)
+          Binary: (INT+)
+            Variable: n
+            Unary: (F2I)
+              Array: fa[int: 2]
+    Loop:
+      Binary: (INT<)
+        Variable: i
+        Variable: n
+      Block:
+        Assignment:
+          Target:
+            Variable: i
+          Source:
+            Binary: (INT+)
+              Variable: i
+              IntVal: 1
+        Assignment:
+          Target:
+            Variable: f
+          Source:
+            Binary: (INT*)
+              Variable: f
+              Variable: i
+

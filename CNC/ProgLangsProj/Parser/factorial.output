@@ -1,0 +1,41 @@
+$ java Parser factorial.cpp
+Output:
+Program (abstract syntax):
+
+  Declarations:  {<int: n> <int: i> <int: f> }
+
+  Statements:
+    Assignment:
+      Target:
+        Variable: n
+      Source:
+        IntVal: 3
+    Assignment:
+      Target:
+        Variable: i
+      Source:
+        IntVal: 1
+    Assignment:
+      Target:
+        Variable: f
+      Source:
+        IntVal: 1
+    Loop:
+      Binary Op:  <
+        Variable: i
+        Variable: n
+        Assignment:
+          Target:
+            Variable: i
+          Source:
+            Binary Op:  +
+              Variable: i
+              IntVal: 1
+        Assignment:
+          Target:
+            Variable: f
+          Source:
+            Binary Op:  *
+              Variable: f
+              Variable: i
+

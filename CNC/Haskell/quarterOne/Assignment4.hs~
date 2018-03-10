@@ -1,0 +1,12 @@
+
+
+import Text.ParserCombinators.Parsec
+
+nImp :: Parser Int
+nImp = do {char '('
+			
+			; return 4
+			}
+		
+
+

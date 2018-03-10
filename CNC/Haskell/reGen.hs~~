@@ -1,0 +1,75 @@
+import qualified Data.Set as Set
+import RegularExprs
+
+type States a = Set.Set a
+type StartState a = a
+type FinalStates a = Set.Set a
+type Moves a = Set.Set (Move a)
+
+data Nfa a = NFA
+				(States a)
+				(Moves a)
+				(StartState a)
+				(FinalStates a)
+					deriving (Eq, Show)
+
+data Move a = Move a RegEx a | Emove a a deriving (Eq,Show,Ord)
+
+
+samp = NFA	(Set.fromList [0..3])
+			(Set.fromList [	Move 0 (lit 'a') 1,
+							Move 1 (lit 'a') 1,
+							Move 1 (lit 'a') 2,
+							Move 1 (lit 'b') 0,
+							Move 2 (lit 'b') 1,
+							Move 2 lam 3 ] )
+			0
+			(Set.singleton 3)
+
+
+
+
+
+
+
+-------------------------------------------------------
+data GTree a = Node a [GTree a] deriving Show
+
+instance Functor GTree where
+	fmap f (Node a gs) = Node (f a) (map (fmap f) gs)
+
+
+flattenG (Node a gs) = a: (concat . map flattenG) gs
+
+test = Node 0 [test1,test2,test3]
+
+test1 = Node 1 [test2,test4]
+test2 = Node 2 [test3]
+test3 = Node 3 []
+test4 = Node 4 [test2]
+{-
+instance Show a => Show (GTree a) where
+	show (Node a []) = "Node " ++ show a ++ " []"
+	show (Node a gs) = "Node " ++ show a ++ " [ " ++ 
+				((concat . map show') gs) ++ " ] "
+		where show' n = show n ++ ", "
+
+-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

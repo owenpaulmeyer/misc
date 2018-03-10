@@ -1,0 +1,299 @@
+import Data.Char
+
+infixr 5 +++
+
+---------------------------------------------------------------
+--Examples of simple grammer parsers with data type definitions
+
+---------------------------------------------------------
+--example 3.2.9
+--strings over {a,b} of even length
+
+data Fill = Fill
+
+ruleS = do	{
+		symbol "a";
+		ruleO;
+		return Fill
+		}+++
+	 do	{
+		symbol "b";
+		ruleO;
+		return Fill
+		}+++
+	 do {
+		symbol "";
+		return Fill}
+ruleO = do {
+		symbol "a";
+		ruleS;
+		return Fill
+		}+++
+	 do	{
+		symbol "b";
+		ruleS;
+		return Fill}
+
+test9 inp = case parse ruleS inp of
+	[(_,"")] -> "a successful parse"
+	_ -> "failure to parse"
+
+
+----------------------------------------------
+--example 3.2.11
+
+data S = Sa B | Sb A | Lambda
+data A = Aa C | Ab S
+data B = Ba S | Bb C
+data C = Ca A | Cb B
+
+instance Show S where
+	show (Sa b) = "a"++show b
+	show (Sb a) = "b"++show a
+	show Lambda = ""
+instance Show A where
+	show (Aa c) = "a"++show c
+	show (Ab s) = "b"++show s
+instance Show B where
+	show (Ba s) = "a"++show s
+	show (Bb s) = "b"++show s
+instance Show C where
+	show (Ca a) = "a"++show a
+	show (Cb b) = "b"++show b
+
+sP = do {symbol "a"; b <- bP; return (Sa b)}+++
+	 do	{symbol "b"; a <- aP; return (Sb a)}+++
+	 do	{symbol "";	return Lambda}
+aP = do	{symbol "a"; c <- cP; return (Aa c)}+++
+	 do	{symbol "b"; s <- sP; return (Ab s)}
+bP = do	{symbol "a"; s <- sP; return (Ba s)}+++
+	 do	{symbol "b"; c <- cP; return (Bb c)}
+cP = do	{symbol "a"; a <- aP; return (Ca a)}+++
+	 do	{symbol "b"; b <- bP; return (Cb b)}
+
+test11 inp = case parse sP inp of
+	[(a,"")] -> a
+	_ -> error("didn't parse")
+---------------------------------------------------
+--problem 21--strings over {a,b} no substring "aba"
+
+data NS = NSa NB | NSb NS | Slam
+data NB = NBa NB | NBb NA | Blam
+data NA = NAb NS | Alam
+
+instance Show NS where
+	show (NSa b) = "a"++show b
+	show (NSb s) = "b"++show s
+	show Slam    = ""
+instance Show NB where
+	show (NBa b) = "a"++show b
+	show (NBb a) = "b"++show a
+	show Blam   = ""
+instance Show NA where
+	show (NAb s) = "b"++show s
+	show Alam   = ""
+
+ns = do {symbol "a"; b <- nb; return (NSa b)}+++
+	 do	{symbol "b"; s <- ns; return (NSb s)}+++
+	 do	{symbol ""; return Slam}
+nb = do	{symbol "a"; b <- nb; return (NBa b)}+++
+	 do {symbol "b"; a <- na; return (NBb a)}+++
+	 do {symbol ""; return Blam}
+na = do {symbol "b"; s <- ns; return (NAb s)}+++
+	 do {symbol ""; return Alam}
+
+
+test21 inp = case parse ns inp of
+	[(a,"")] -> a
+	_ -> error("didn't parse")
+--------------------------------------------------
+--has substring aba
+data Ner = Ner deriving Show
+rS = do{symbol "w";rS;return Ner}+++do{symbol "r";rS;return Ner}+++
+	do{symbol "a";rA;return Ner}+++do{symbol "b";rS;return Ner}
+rA = do{symbol "b";rB;return Ner}+++do{symbol "a";rA;return Ner}+++rS
+rB = do{symbol "a";rD;return Ner}+++do{symbol "b";rS;return Ner}+++rS
+rD = do{symbol "w";rD;return Ner}+++do{symbol "r";rD;return Ner}+++do{symbol "a";rD;return Ner}+++
+	do{symbol "b";rD;return Ner}+++do{symbol "";return Ner}
+
+r2s = do{symbol "w";r2s;return Ner}+++do{symbol "r";r2s;return Ner}+++do{symbol "aba";r3s;return Ner}
+	+++do{symbol "a";r2s;return Ner}+++do{symbol "b";r2s;return Ner}
+r3s = do{symbol "w";r3s;return Ner}+++do{symbol "r";r3s;return Ner}+++do{symbol "a";r3s;return Ner}+++
+	do{symbol "b";r3s;return Ner}+++do{symbol "";return Ner}
+---------------------------------------------------
+--final number 6.
+data Y = Y deriving Show
+s6 = do{symbol"b";s6;return Y}+++do{symbol"a";a6;return Y}
+a6 = do{symbol"b";s6;return Y}+++do{symbol"a";b6;return Y}
+b6 = do{symbol"b";c6;return Y}+++do{symbol"";return Y}
+c6 = do{symbol"b";c6;return Y}+++do{symbol"a";d6;return Y}+++do{symbol"";return Y}
+d6 = do{symbol"b";c6;return Y}+++do{symbol"";return Y}
+
+---------------------------------------------------
+
+s19 =	do{lookahead1 a19;symbol "abd";return Y}+++
+		do{symbol "abd";return Y}+++
+		do{symbol "c";lookahead1 a19;symbol "bcd";return Y}+++
+		do{symbol "cbcd";return Y}
+
+a19 =	do{symbol "a";return "a"}+++
+		do{symbol "b";return "b"}+++
+		do{symbol "";return "lambda"}
+---------------------------------------------------
+data Expr = Lit Int | Op BinOp Expr Expr
+data BinOp = Add | Sub
+
+instance Show Expr where
+	show (Lit n) = show n
+	show (Op b e1 e2) =  "(" ++ show e1 ++ show b ++ show e2 ++ ")"
+
+instance Show BinOp where
+	show Add = " + "
+	show Sub = " - "
+
+addop = do {symbol "+"; return (Op Add)} +++ do {symbol "-"; return (Op Sub)}
+
+nat = do {
+		 n <- token (many1 digit);
+	 	 return (read n :: Int)
+		 }
+
+term :: Parser Expr
+term = do {
+	      n <- nat;
+	      return (Lit n)
+	      }
+
+expr = term `chainl1` addop
+
+test'  inp = case parse expr inp of
+	[(a,"")] -> a
+	_ -> error("didn't parse")
+
+result :: String -> (Expr -> t) -> t
+result inp eval = case parse expr inp of
+	[(a,"")] -> eval a
+	_ -> error("invalid expression")
+
+eval = id
+----------------------------------------------------
+--the foundational parsers
+
+fails = P (\inp -> [])
+
+item :: Parser Char
+item = P (\inp -> case inp of
+					[]     -> []
+					(c:cs) -> [(c,cs)])
+
+------------------------------------------------------
+--some matching parsers; based in sat (some use many /
+--many1 from next section below)
+
+sat :: (Char -> Bool) -> Parser Char
+sat p = do {c <- item; if p c then return c else zero}
+
+char :: Char -> Parser Char
+char c = sat (c ==)
+
+digit :: Parser Char
+digit = sat isDigit
+
+letter :: Parser Char
+letter = sat isAlpha
+
+alphanum :: Parser Char
+alphanum = sat isAlphaNum
+
+space :: Parser String
+space = many (sat isSpace)
+
+nums :: Parser String
+nums = many1 digit
+
+letters :: Parser String
+letters = many1 letter
+
+string :: String -> Parser String
+string "" = return ""
+string (c:cs) = do {char c; string cs; return (c:cs)}
+
+token :: Parser a -> Parser a
+token p = do {space; a <- p; space; return a}
+
+symbol :: String -> Parser String
+symbol cs = token (string cs)
+
+-----------------------------------------------------
+--more advanced parsers;  
+
+--applies a parser zero or more times (like Kleene star in RE's)
+many :: Parser a -> Parser [a]
+many p = many1 p +++ return []
+
+--applies a parser one or more times (like + in RE's)
+many1 :: Parser a -> Parser [a]
+many1 p = do {a <- p; as <- many p; return (a:as)}
+
+sepby :: Parser a -> Parser b -> Parser [a]
+p `sepby` sep = (p `sepby1` sep) +++ return []
+
+sepby1 :: Parser a -> Parser b -> Parser [a]
+p `sepby1` sep = do {
+					a <- p;
+					as <- many (do {sep; p});
+					return (a:as)
+					}
+
+chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op a = (p `chainl1` op) +++ return a
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` op = do {a <- p; rest a}
+			where
+				rest a = (do
+							f <- op
+							b <- p
+							rest (f a b))
+						+++ return a
+
+--fails if the lambda case succeeds; otherwise succeeds with whatever
+--it consumed
+lookahead1 :: Parser String -> Parser String
+lookahead1 aA = do {a <- aA;
+					if a=="" then fails else return a}
+
+-----------------------------------------------------
+--The underlying structure of the parser monad
+
+class Monad m => MonadZero m where
+	zero :: m a
+
+class  MonadZero m => MonadPlus m where
+	mplus :: m a -> m a -> m a
+
+instance MonadZero Parser where
+	zero = P (\inp -> [])
+
+instance MonadPlus Parser where
+	p `mplus` q = P (\inp -> parse p inp ++ parse q inp)
+
+newtype Parser a = P {parse :: String -> [(a,String)]}
+
+instance Functor Parser where
+	fmap f p = P (\inp -> case parse p inp of
+								[]        -> []
+								[(v,out)] -> [(f v,out)] )
+
+join' p = P (\inp -> case parse p inp of
+						[]        -> []
+						[(v,out)] -> parse v out)
+
+instance Monad Parser where
+	return a = P (\inp -> [(a,inp)])
+	p >>= f  = join' . fmap f $ p
+
+p1 +++ p2 = P (\inp -> case parse (p1 `mplus` p2) inp of
+						[] -> []
+						(x:xs) -> [x] )
+

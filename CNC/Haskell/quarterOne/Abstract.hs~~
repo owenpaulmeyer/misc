@@ -1,0 +1,87 @@
+module Abstract where
+
+
+data Program a    =  Decpart Decls | Body Stmts deriving Show
+type Decls        =  [Decl]
+data Decl         =  D Dtype  	deriving Show-- Variable | Array
+data Dtype        =  VarD Var Type | ArrayD Var Type deriving Show
+data Type         =  T Types	deriving Show
+data Types        =  INT | FLOAT | BOOL | CHAR	deriving Show
+type Stmts        =  [Stmt]
+data Stmt         =  S Stype  	deriving Show-- Skip | Block | Assnmt | Condl | Loop
+data Stype        =  Skip |
+					 Block Stmts |
+					 Assn Assnmt |
+					 Cond Condl	deriving Show
+
+
+data Condl        =  Condl Expr Stmt Stmt deriving Show-- test, then branch, else branch
+data Assnmt       =  Assnmt References Expr  -- target; source
+data Expr         =  Expr Etype  	--  Binary | Unary | VarRef | Value 
+data Etype        =  Binary BinOp Expr Expr |
+					 Unary UnOp Expr |
+					 VarRef References |
+					 Value Values
+
+data BinOp        =  BoolOp Bop | RelOp Rop | ArithOp Aop
+data Bop          =  And | Or
+data Rop          =  Eq | NotEq | Lt | Gt | LtEq | GtEq
+data Aop          =  Add | Sub | Mul | Div deriving Eq
+
+data UnOp         =  Minus | Not deriving Show
+
+data Var          =  Var String	deriving Show
+data References   =  Variable String | ArrayRef String Expr --Expr as array index
+data Values       =  I IntVal | F FloatVal | B BoolVal | C CharVal
+type IntVal       =  Int
+type FloatVal     =  Float
+type BoolVal      =  Bool
+type CharVal      =  Char
+
+
+
+---------------------
+instance Show Assnmt where
+	show (Assnmt r e) = show r++" = "++show e
+
+instance Show Expr where
+	show (Expr e) = show e
+
+instance Show Etype where
+	show (Binary (ArithOp op) e1 e2)
+		|op==Mul||op==Div = show e1++show op++show e2
+		|otherwise        = "("++show e1++show op++show e2++")"
+	show (Binary (BoolOp op) e1 e2) = show e1++show op++show e2
+	show (Binary (RelOp op) e1 e2) = show e1++show op++show e2
+	show (Unary op e) = show op++show e
+	show (VarRef refs) = show refs
+	show (Value vals) = show vals
+
+instance Show References where
+	show (Variable str) = "Var: "++str
+	show (ArrayRef str e) = "Array: "++str++"["++show e++"]"
+
+instance Show Values where
+	show (I i) = show i
+	show (F f) = show f
+	show (B b) = show b
+	show (C c) = show c
+
+instance Show Aop where
+	show Add = " + "
+	show Sub = " - "
+	show Mul = " * "
+	show Div = " / "
+
+instance Show Bop where
+	show Or = " Or "
+	show And = " And "
+
+instance Show Rop where
+	show Eq = " == "
+	show NotEq = " != "
+	show Lt = " < "
+	show Gt = " > "
+	show LtEq = " <= "
+	show GtEq = " >= "
+

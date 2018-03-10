@@ -1,0 +1,13 @@
+*.haddock
+*.raw-hs
+*.tmp
+*_split
+*.p_hi
+*.p_o
+base.conf.inplace
+base.conf.installed
+html
+nul
+package.conf.inplace
+package.conf.installed
+stamp-pkg-conf

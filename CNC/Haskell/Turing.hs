@@ -1,0 +1,415 @@
+
+import Control.Applicative
+
+
+type Symbol = Char
+type State  = Integer
+type Start  = Step
+type End    = Step
+data Step   = Step [Symbol] State [Symbol]
+instance Show Step where
+	show (Step ssl st ssr)
+		= show (reverse ssl) ++" "++ show st ++" "++ show ssr
+type Delta  = (Inp, Write, Move)
+type Inp    = (State, Symbol)
+type Write  = (State, Symbol)
+data Move   = R | L | S
+
+data TM   = M {	states :: [State],
+				sigma  :: [Symbol],
+				gamma  :: [Symbol],
+				delta  :: [Delta],
+				start  :: State }
+
+
+
+
+
+process :: Step -> [Delta] -> IO Step
+process r@(Step ssl st ssr) ds = do
+	case match (st, (head ssr)) ds of
+		Nothing -> return r
+		Just dt -> do
+			print r
+			process (applyDelta r dt) ds 
+
+chain inp m1 m2 = do
+	x@(Step sl st sr) <- process inp m1
+	print x
+	print "--"
+	process (Step sl 8 sr) m2
+
+applyDelta :: Step -> Delta -> Step
+applyDelta (Step left state right) (_, wrt, R) =
+	Step newLeft newSt newRight
+		where
+			newLeft  = push write left
+			newSt    = fst wrt
+			newRight = tail right
+			write    = snd wrt
+applyDelta r@(Step left state right) (_, wrt, L)
+	|left == [] = r
+	|otherwise  =
+		Step newLeft newSt newRight
+			where
+				newLeft  = tail left
+				newSt    = fst wrt
+				newRight = push l $ push write (tail right)
+				write    = snd wrt
+				l        = pop left
+--this pattern only applies to the two tape machine
+applyDelta (Step left state right) (_, wrt, S) =
+	Step left newSt newright
+		where
+			newSt    = fst wrt
+			newright = push (snd wrt) $ tail right
+
+
+pop = head
+push = (:)
+
+
+match _ [] = Nothing
+match (st, sy) (d@(inp, wrt, mv):ds) 
+	|st == fst inp && sy == snd inp = Just d
+	|otherwise                      = match (st, sy) ds
+
+
+samD = [((0, 'B'),(1,'B'),R),
+		((1, 'B'),(2,'B'),L),
+		((1, 'a'),(1,'b'),R),
+		((1, 'b'),(1,'a'),R),
+		((2, 'a'),(2,'a'),L),
+		((2, 'b'),(2,'b'),L)]
+
+
+
+finaleven = [((0, 'B'),(1,'B'),R),
+			((1, '1'),(2,'1'),R),
+			((2, '1'),(1,'1'),R),
+			((2, 'B'),(3,'B'),L),
+			((3, '1'),(3,'B'),L),
+			((3, 'B'),(4,'B'),R),
+			((4, 'B'),(5,'1'),L),
+			((1, 'B'),(6,'B'),L),
+			((6, '1'),(6,'B'),L),
+			((6, 'B'),(7,'B'),R),
+			((7, 'B'),(5,'0'),L)]
+
+
+finalLT = [	((0, 'B'),(1,'B'),R),
+			((1, '1'),(2,'1'),R),
+			((2, 'B'),(3,'B'),R),
+			((3, 'B'),(3,'B'),R),
+			((3, '1'),(4,'1'),R),
+			((4, 'B'),(5,'B'),R),
+			((5, 'B'),(6,'B'),L),
+			((6, 'B'),(7,'B'),L),
+			((7, '1'),(8,'B'),L),
+			((8, 'B'),(8,'B'),L),
+			((8, '1'),(9,'0'),L),
+
+			((4, '1'),(10,'1'),R),
+			((10, '1'),(10,'1'),R),
+			((10, 'B'),(11,'B'),L),
+			((11, '1'),(11,'B'),L),
+			((11, 'B'),(12,'B'),L),
+			((12, 'B'),(12,'B'),L),
+			((12, '1'),(14,'1'),L),
+
+			((2, '1'),(15,'1'),R),
+			((15, '1'),(15,'1'),R),
+			((15, 'B'),(16,'B'),R),
+			((16, 'B'),(16,'B'),R),
+			((16, '1'),(17,'1'),R),
+			((17, 'B'),(18,'B'),L),
+			((18, '1'),(19,'B'),L),
+			((19, 'B'),(19,'B'),L),
+			((19, '1'),(20,'B'),L),
+			((20, '1'),(20,'B'),L),
+			((20, 'B'),(21,'B'),R),
+			((21, 'B'),(22,'0'),L),
+
+			((17, '1'),(23,'1'),R),
+			((23, '1'),(23,'1'),R),
+			((23, 'B'),(24,'B'),L),
+			((24, '1'),(25,'B'),L),
+			((25, '1'),(25,'1'),L),
+			((25, 'B'),(26,'B'),L),
+			((26, 'B'),(26,'B'),L),
+			((26, '1'),(27,'B'),L),
+			((27, '1'),(27,'1'),L),
+			((27, 'B'),(1,'B'),R)]
+
+
+{-
+
+
+
+even (0):
+process (Step "" 0 "B1B") finaleven
+"" 0 "B1B"
+"B" 1 "1B"
+"B1" 2 "B"
+"B" 3 "1B"
+"" 3 "BBB"
+"B" 4 "BB"
+"" 5 "B1B"  <- a one is left in position one
+even (1):
+process (Step "" 0 "B11B") finaleven
+"" 0 "B11B"
+"B" 1 "11B"
+"B1" 2 "1B"
+"B11" 1 "B"
+"B1" 6 "1B"
+"B" 6 "1BB"
+"" 6 "BBBB"
+"B" 7 "BBB"
+"" 5 "B0BB"  <- a zero is left in position one
+even (2):
+process (Step "" 0 "B111B") finaleven
+"" 0 "B111B"
+"B" 1 "111B"
+"B1" 2 "11B"
+"B11" 1 "1B"
+"B111" 2 "B"
+"B11" 3 "1B"
+"B1" 3 "1BB"
+"B" 3 "1BBB"
+"" 3 "BBBBB"
+"B" 4 "BBBB"
+"" 5 "B1BBB"  <- a one is left in position one
+
+
+
+lt (0,0):
+process (Step "" 0 "B1B1BB") finalLT
+"" 0 "B1B1BB"
+"B" 1 "1B1BB"
+"B1" 2 "B1BB"
+"B1B" 3 "1BB"
+"B1B1" 4 "BB"
+"B1B1B" 5 "B"
+"B1B1" 6 "BB"
+"B1B" 7 "1BB"
+"B1" 8 "BBBB"
+"B" 8 "1BBBB"
+"" 9 "B0BBBB"  <- a zero is left in position one
+lt (0,1):
+process (Step "" 0 "B1B11BB") finalLT
+"" 0 "B1B11BB"
+"B" 1 "1B11BB"
+"B1" 2 "B11BB"
+"B1B" 3 "11BB"
+"B1B1" 4 "1BB"
+"B1B11" 10 "BB"
+"B1B1" 11 "1BB"
+"B1B" 11 "1BBB"
+"B1" 11 "BBBBB"
+"B" 12 "1BBBBB"
+"" 14 "B1BBBBB"  <- a one is left in position one
+lt (1,1)
+process (Step "" 0 "B11B11BB") finalLT
+"" 0 "B11B11BB"
+"B" 1 "11B11BB"
+"B1" 2 "1B11BB"
+"B11" 15 "B11BB"
+"B11B" 16 "11BB"
+"B11B1" 17 "1BB"
+"B11B11" 23 "BB"
+"B11B1" 24 "1BB"
+"B11B" 25 "1BBB"
+"B11" 25 "B1BBB"
+"B1" 26 "1B1BBB"
+"B" 27 "1BB1BBB"
+"" 27 "B1BB1BBB"
+"B" 1 "1BB1BBB"
+"B1" 2 "BB1BBB"
+"B1B" 3 "B1BBB"
+"B1BB" 3 "1BBB"
+"B1BB1" 4 "BBB"
+"B1BB1B" 5 "BB"
+"B1BB1" 6 "BBB"
+"B1BB" 7 "1BBB"
+"B1B" 8 "BBBBB"
+"B1" 8 "BBBBBB"
+"B" 8 "1BBBBBB"
+"" 9 "B0BBBBBB"  <- a zero is left in position one
+lt (1,0):
+process (Step "" 0 "B11B1BB") finalLT
+"" 0 "B11B1BB"
+"B" 1 "11B1BB"
+"B1" 2 "1B1BB"
+"B11" 15 "B1BB"
+"B11B" 16 "1BB"
+"B11B1" 17 "BB"
+"B11B" 18 "1BB"
+"B11" 19 "BBBB"
+"B1" 19 "1BBBB"
+"B" 20 "1BBBBB"
+"" 20 "BBBBBBB"
+"B" 21 "BBBBBB"
+"" 22 "B0BBBBB"  <- a zero is left in position one
+lt (1,2):
+process (Step "" 0 "B11B111BB") finalLT
+"" 0 "B11B111BB"
+"B" 1 "11B111BB"
+"B1" 2 "1B111BB"
+"B11" 15 "B111BB"
+"B11B" 16 "111BB"
+"B11B1" 17 "11BB"
+"B11B11" 23 "1BB"
+"B11B111" 23 "BB"
+"B11B11" 24 "1BB"
+"B11B1" 25 "1BBB"
+"B11B" 25 "11BBB"
+"B11" 25 "B11BBB"
+"B1" 26 "1B11BBB"
+"B" 27 "1BB11BBB"
+"" 27 "B1BB11BBB"
+"B" 1 "1BB11BBB"
+"B1" 2 "BB11BBB"
+"B1B" 3 "B11BBB"
+"B1BB" 3 "11BBB"
+"B1BB1" 4 "1BBB"
+"B1BB11" 10 "BBB"
+"B1BB1" 11 "1BBB"
+"B1BB" 11 "1BBBB"
+"B1B" 11 "BBBBBB"
+"B1" 12 "BBBBBBB"
+"B" 12 "1BBBBBBB"
+"" 14 "B1BBBBBBB"  <- a one is left in position one
+
+
+
+
+
+
+
+
+-}
+
+final2 = [	( ((0, 'B'),(1,'B'),R), ((0, 'B'),(1,'B'),R) ),
+			( ((1, '0'),(1,'0'),R), ((1, 'B'),(1,'0'),R) ),
+			( ((1, '1'),(1,'1'),R), ((1, 'B'),(1,'1'),R) ),
+			( ((1, 'B'),(2,'B'),S), ((1, 'B'),(2,'B'),L) ),
+			( ((2, 'B'),(2,'B'),S), ((2, '0'),(2,'0'),L) ),
+			( ((2, 'B'),(2,'B'),S), ((2, '1'),(2,'1'),L) ),
+			( ((2, 'B'),(3,'B'),R), ((2, 'B'),(3,'B'),R) ),
+			( ((3, '0'),(3,'0'),R), ((3, '0'),(3,'0'),R) ),
+			( ((3, '1'),(3,'1'),R), ((3, '1'),(3,'1'),R) ),
+			( ((3, 'B'),(5,'B'),S), ((3, 'B'),(5,'B'),S) ),
+
+			( ((3, '0'),(4,'X'),S), ((3, '1'),(4,'X'),S) ),
+			( ((3, '1'),(4,'X'),S), ((3, '0'),(4,'X'),S) ),
+			( ((3, '0'),(4,'X'),S), ((3, 'B'),(4,'B'),S) ),
+			( ((3, '1'),(4,'X'),S), ((3, 'B'),(4,'B'),S) ),
+			( ((3, 'B'),(4,'B'),S), ((3, '0'),(4,'X'),S) ),
+			( ((3, 'B'),(4,'B'),S), ((3, '1'),(4,'X'),S) )  ]
+
+
+
+match2 _ [] = Nothing
+match2 (a@(st1, sy1), b@(st2, sy2)) (d@((inp1, wrt1, mv1), (inp2, wrt2, mv2)):ds) 
+	|(st1 == fst inp1 && sy1 == snd inp1) &&
+		(st2 == fst inp2 && sy2 == snd inp2) = Just d
+	|otherwise                      = match2 (a, b) ds
+
+			
+
+
+
+twoTape (s1@(Step ssl1 st1 ssr1), s2@(Step ssl2 st2 ssr2)) ds = do
+	case match2 ((st1, (head ssr1)), (st2, (head ssr2))) ds of
+		Nothing -> do
+			print s1
+			print s2
+			return ()
+		Just (dt1, dt2) -> do
+				print s1
+				print s2
+				putStr "\n"
+				twoTape ((applyDelta s1 dt1), (applyDelta s2 dt2)) ds
+
+
+
+
+{-
+
+
+twoTape ((Step "" 0 "B101B101BB"), (Step "" 0 "BBBBBBBBBB")) final2
+"" 0 "B101B101BB"
+"" 0 "BBBBBBBBBB"
+
+"B" 1 "101B101BB"
+"B" 1 "BBBBBBBBB"
+
+"B1" 1 "01B101BB"
+"B1" 1 "BBBBBBBB"
+
+"B10" 1 "1B101BB"
+"B10" 1 "BBBBBBB"
+
+"B101" 1 "B101BB"
+"B101" 1 "BBBBBB"
+
+"B101" 2 "B101BB"
+"B10" 2 "1BBBBBB"
+
+"B101" 2 "B101BB"
+"B1" 2 "01BBBBBB"
+
+"B101" 2 "B101BB"
+"B" 2 "101BBBBBB"
+
+"B101" 2 "B101BB"
+"" 2 "B101BBBBBB"
+
+"B101B" 3 "101BB"
+"B" 3 "101BBBBBB"
+
+"B101B1" 3 "01BB"
+"B1" 3 "01BBBBBB"
+
+"B101B10" 3 "1BB"
+"B10" 3 "1BBBBBB"
+
+"B101B101" 3 "BB"
+"B101" 3 "BBBBBB"
+
+"B101B101" 5 "BB"
+"B101" 5 "BBBBBB"  <- state 5 Accepts ((!))
+
+twoTape ((Step "" 0 "B11B1BB"), (Step "" 0 "BBBBBBBBBB")) final2
+"" 0 "B11B1BB"
+"" 0 "BBBBBBBBBB"
+
+"B" 1 "11B1BB"
+"B" 1 "BBBBBBBBB"
+
+"B1" 1 "1B1BB"
+"B1" 1 "BBBBBBBB"
+
+"B11" 1 "B1BB"
+"B11" 1 "BBBBBBB"
+
+"B11" 2 "B1BB"
+"B1" 2 "1BBBBBBB"
+
+"B11" 2 "B1BB"
+"B" 2 "11BBBBBBB"
+
+"B11" 2 "B1BB"
+"" 2 "B11BBBBBBB"
+
+"B11B" 3 "1BB"
+"B" 3 "11BBBBBBB"
+
+"B11B1" 3 "BB"
+"B1" 3 "1BBBBBBB"
+
+"B11B1" 4 "BB"
+"B1" 4 "XBBBBBBB"  <- state 4 Rejects (!)
+
+
+-}

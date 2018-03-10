@@ -1,0 +1,279 @@
+
+import Control.Applicative
+
+>import Data.Char
+>import Test.QuickCheck
+
+>class Applicative f where
+>	pure  :: a -> f a
+>	(<*>) :: f (a -> b) -> f a -> f b
+
+1.)
+
+>fTolist :: (a -> b) -> [a] -> [b]
+>fTolist f as = map f as
+
+>plusOne :: [Int] -> [Int]
+>plusOne as = map (+1) as
+
+>glassBead :: [Int] -> [Char]
+>glassBead as = map intToDigit as
+
+2.)
+
+>data GTree a = Empty | Node a [GTree a] deriving (Show, Eq)
+
+>instance Functor GTree where
+>	fmap f Empty = Empty
+>	fmap f (Node v gs) = Node (f v) $ map (fmap f) gs
+
+>samp1 = Node 1 [samp2, samp3, samp2, samp4]
+>samp2 = Node 2 [samp3, samp4, Empty]
+>samp3 = Node 3 [samp4, Empty, samp4]
+>samp4 = Node 4 []
+
+prove Functor laws for GTree
+fmap id = id
+fmap (g . h) = fmap g . fmap h
+
+first law:
+
+induction on depth of GTree
+
+	base case:
+		left hand side:
+			fmap id Empty = Empty
+		right hand side:
+			id Empty      = Empty
+
+	inductive step:
+		assume: map (fmap id) gs = map id gs
+								 = gs
+		prove : fmap id (Node a gs) = id (Node a gs)
+			left hand side:
+				fmap id (Node a gs)
+					= Node (id a) $ map (fmap id) gs
+					= Node a $ map (fmap id) gs
+					= Node a gs
+			right hand side:
+				id (Node a gs)
+					= Node a gs
+
+second law:
+
+induction on depth of GTree
+
+	base case:
+		left hand side:
+			fmap (g . h) Empty
+				= Empty
+		righ hand side:
+			(fmap g . fmap h) Empty
+				= fmap g (fmap h Empty)
+				= fmap g Empty
+				= Empty
+
+	inductive step:
+		assume: map (fmap (g . h)) gs = map (fmap g . fmap h) gs
+		assume Functor law for map over list:
+			map (g . h) gs = (map g . map h) gs
+		prove : fmap (g . h) (Node a gs) = (fmap g . fmap h) (Node a gs)
+			left hand side:
+				fmap (g . h) (Node a gs)
+					= Node ((g . h) a) (map (fmap (g . h)) gs)
+			right hand side:
+				(fmap g . fmap h) (Node a gs)
+					= fmap g (Node (h a) (map (fmap h) gs))
+					= Node (g (h a)) (map (fmap g) (map (fmap h) gs))
+					= Node (g (h a)) (map (fmap g) . map (fmap h)) gs)
+					= Node (g (h a)) (map (fmap g . fmap h) gs)
+					= Node ((g . h) a) (map (fmap (g . h)) gs)
+
+
+3.)
+
+instance Functor [] where
+	fmap _ [] = []
+	fmap g (x:xs) = g x : g x : fmap g xs
+
+show that this instance does not obey:
+	fmap id = id
+	fmap (g . h) = fmap g . fmap h
+
+The first law fails:
+
+left hand side:
+fmap id (1:[])
+	= (id 1) : (id 1) : fmap g []
+	= 1 : 1 : []
+
+right hand side:
+id (1:[])
+	= 1 : []
+
+The second law fails:
+
+left hand side:
+fmap (g . h) (1:[])
+	= (g . h) 1 : (g . h) 1 : fmap (g . h) []
+	= (g . h) 1 : (g . h) 1 : []
+
+right hand side:
+(fmap g . fmap h) (1:[])
+	= fmap g (fmap h (1:[]) )
+	= fmap g (h 1 : h 1 : fmap h [])
+	= fmap g (h 1 : h 1 : [])
+	= g (h 1) : g (h 1) : fmap g (h 1 : [])
+	= g (h 1) : g (h 1) : g (h 1) : g (h 1) : fmap g []
+	= g (h 1) : g (h 1) : g (h 1) : g (h 1) : []
+
+ghci> (fmap id samp1) == (id samp1)
+True
+
+fmap (g . h) samp1 = fmap g . fmap h $ samp1
+
+4.)
+
+>data Eather e a = L e | R a
+
+>instance Functor (Eather e) where
+>	fmap f (L e) = L e
+>	fmap f (R a) = R (f a)
+
+Prove that the laws for Functors hold for (Eather e)
+	fmap id = id
+	fmap (g . h) = fmap g . fmap h
+
+first law:
+
+left hand side:
+fmap id (L e)
+	= L e
+fmap id (R a)
+	= R (id a)
+	= R a
+
+right hand side:
+id (L e) = L e
+id (R a) = R a
+
+second law:
+
+left hand side:
+fmap (g . h) (L e)
+	= L e
+fmap (g . h) (R a)
+	= R (g . h) a
+	= R (g (g a))
+
+right hand side:
+fmap g . fmap h (L e)
+	= L e
+fmap g . fmap h (R a)
+	= fmap g (R (h a))
+	= R (g (h a))
+
+
+>instance Applicative (Eather e) where
+>	pure a = R a
+>	L e <*> _   = L e
+>	_   <*> L e = L e
+>	R f <*> R a = R (f a)
+
+5.)
+
+>instance Pointed (Eather e) where
+>	pure' a = R a
+
+6.)
+instance Functor (Eather e) where
+	fmap _ (L e) = L e
+	fmap f (R a) = R (f a)
+
+Prove:  fmap g . pure = pure . g  :for (Eather e)
+
+(fmap g . pure) (L x) = (pure . g) (L x)
+
+right hand side:
+	(fmap g . pure) (L x)
+		= fmap g (Right (L x))
+		= Right  (g (L x))
+left hand side:
+	(pure . g) (L x)
+		= pure (g (L x))
+		= Right (g (L x))
+
+7.)
+
+>class Functor f => Pointed f where
+>	pure' :: a -> f a
+
+instance Functor ((->) r) where
+	fmap = (.)
+
+>instance Pointed ((->) r) where
+>	pure' = const
+
+>instance Applicative ((->) r) where
+>	pure = pure'
+>	f <*> p = (\r -> (f r) (p r))
+
+8.)
+
+prove Functor laws for ((->) r)
+fmap id = id
+fmap (g . h) = fmap g . fmap h
+
+first law:
+
+left hand side:
+	fmap id f
+		= id . f
+		= \x -> id (f x)
+		= \x -> f x
+		= f
+
+right hand side:
+	id f
+		= id f
+		= f
+
+second law:
+
+left hand side:
+	fmap (g . h) f
+		= (g . h) . f
+
+right hand side:
+	(fmap g . fmap h) f
+		= fmap g (fmap h f)
+		= fmap g (h . f)
+		= g . (h . f)
+
+
+f . g = \x -> f (g x)
+
+(f . g) . h	= \x -> (f . g) (h x)
+			= \x -> f (g (h x))
+f . (g . h) = \x -> f ((g . h) x)
+			= \x -> f (g (h x)
+
+9.)
+
+prove:  fmap g . pure = pure . g  :for ((->) r)
+
+left hand side:
+	(fmap g . pure) f
+		= fmap g (pure f)
+		= fmap g (\x -> f)
+		= g . (\x -> f)
+		= \y -> g ((\x -> f) y)
+		= \y -> g f
+		
+right hand side:
+	(pure . g) f
+		= pure (g f)
+		= \y -> g f
+
+
+

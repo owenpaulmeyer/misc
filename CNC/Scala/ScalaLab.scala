@@ -1,0 +1,495 @@
+
+
+/*
+ * Part I
+ * Partial application/curried functions
+ * I wrote these all with just ints, but there is one sample with type 
+ * variables.
+ *
+ */
+def f1 (x:Int) : Int = x+1
+
+def sum(f: Int=>Int)(a:Int, b:Int):Int =
+	if (a>b) 0 else f(a) + sum(f)(a+1, b)
+
+/*
+	Here are examples using sum, with a named and unnamed function:
+
+	scala> val g1 = sum (f1) _
+	val g1 = sum (f1) _
+	g1: (Int, Int) => Int = <function>
+	scala> g1 (5,6)
+	g1 (5,6)
+	res3: Int = 13
+	scala> sum ((x:Int)=>x+1) (5,6)
+	sum ((x:Int)=>x+1) (5,6)
+	res5: Int = 13
+ */
+
+/*
+ * Different ways to define a function that
+ * you might want to use in a partial application
+ */
+
+def plus3 (a:Int): Int => Int = (x:Int) => a+x
+
+def plus2 = (x:Int) => (y:Int) => x+y
+
+def plus (a:Int) (b:Int) : Int = a + b
+
+def plus1 (a:Int, b:Int) = a+b
+
+
+val x = plus1(1,_:Int)
+val y = x (6)
+
+/*
+ * And here are samples using the pluses:
+ *	scala> val v1 = plus3 (5)
+	val v1 = plus3 (5)
+	v1: (Int) => Int = <function>
+	
+	scala> val v2 = plus2 (5)
+	val v2 = plus2 (5)
+	v2: (Int) => Int = <function>
+	
+	scala> val v3 = plus3 (5)
+	val v3 = plus3 (5)
+	v3: (Int) => Int = <function>
+	
+	scala> val v4 = plus (5)
+	val v4 = plus (5)
+	<console>:37: error: missing arguments for method plus in object $iw;
+	follow this method with `_' if you want to treat it as a partially applied function
+       	val v4 = plus (5)
+                	^
+	
+	scala> val v4 = plus (5) _
+	val v4 = plus (5) _
+	v4: (Int) => Int = <function>
+	
+	scala> 
+
+ */
+
+
+/*
+ * The following is an example of using type parameters.
+ * It does allow me to say prUp (6) but not with exactly expected
+ * results:
+ * scala> val f = prUp (6)
+	val f = prUp (6)
+	f: (Nothing) => (Int, Nothing) = <function>
+	
+	scala> val g = f ("abc")
+	val g = f ("abc")
+	<console>:8: error: type mismatch;
+ 	found   : java.lang.String("abc")
+ 	required: Nothing
+       	val g = f ("abc")
+                  	^
+	
+	scala> 
+ *
+ * But if I do it with explicit typing it works:
+ *
+ *	scala> val f2:(String=>(Int,String)) = prUp (5)
+	val f2:(String=>(Int,String)) = prUp (5)
+	f2: (String) => (Int, String) = <function>
+	
+	scala> f2 ("abc")
+	f2 ("abc")
+	res21: (Int, String) = (5,abc)
+	
+	scala> 
+	
+ *
+ * 
+ */
+def prUp[A,B] (a:A): B => (A,B) = (x:B) => (a,x)
+
+
+// following pattern does not work
+// I surmise can't have patterns in function heads
+// def pr ((x,y):(Int,Int)): Int = x
+
+
+def curry (f:((Int,Int)=>Int)) (x:Int) (y:Int) : Int =  {
+	f (x,y)
+}
+
+
+def uncurry (h: Int => Int => Int): (Int,Int) => Int = {
+	(u:Int, v:Int) => h (u) (v)
+}
+
+val g = curry (plus1) _
+
+/*
+	Here I use the curry and uncurry functions:
+
+	scala> g(5)(6)
+	g(5)(6)
+	res4: Int = 11
+	
+	scala> (uncurry(g))(5,6)
+	(uncurry(g))(5,6)
+	res5: Int = 11
+	
+	scala> curry (plus1) (5) (6)
+	curry (plus1) (5) (6)
+	res7: Int = 11
+	
+	scala> (uncurry(curry(plus1))) (5,6)
+	(uncurry(curry(plus1))) (5,6)
+	res8: Int = 11
+
+	
+
+*/
+
+
+implicit def function2composable[A,B] (f: A=>B) = new AnyRef {
+	def -->[C](g: B=>C) = (v:A) => g(f(v))
+}
+
+def ggg = curry _  --> uncurry _
+
+/*
+ * So here is the sample using the curry, uncurry with function
+ * composition:
+	scala> plus1(5,6)
+	plus1(5,6)
+	res12: Int = 11
+	
+	scala> (curry(plus1))(5)(6)
+	(curry(plus1))(5)(6)
+	res13: Int = 11
+	
+	scala> ggg(plus1)(5,6)
+	ggg(plus1)(5,6)
+	res14: Int = 11
+	
+	scala> 
+
+ */
+
+def insert(x: Int, xs:List[Int]) : List[Int] = xs match {
+	case List() => List(x)
+	case y::ys => if (x <= y) x::xs else y:: insert(x, ys)
+}
+def isort(xs: List[Int]) : List[Int] = xs match {
+	case List() => List()
+	case x::xs1 => insert(x, isort(xs1))
+}
+
+def reverse(xs:List[Int]): List[Int] = xs match {
+	case List() => List()
+	case x::xs1 => reverse(xs1)++List(x)
+}
+
+
+def filter[A](f:A => Boolean) (xs:List[A]) : List[A] = xs match {
+	case List()		=>	List()
+	case x::xs		=>	f(x) match {
+		case false		=>	filter (f) (xs)
+		case true		=>	x::(filter (f) (xs) )
+	}
+}
+
+def zipWith[A,B,C] (f:A=>B=>C) (xs:List[A]) (ys:List[B]) : List[C] = (xs,ys) match {
+	case (List(), z)		=>	List()
+	case (z, List())		=>	List()
+	case (x::xss, y::yss)	=>	f(x)(y)::zipWith(f)(xss)(yss)
+}
+
+def foldl[A,B] (f:A=>B=>A) (a:A) (xs:List[B]) : A = xs match {
+	case List()		=>	a
+	case (b::bs)	=>	foldl (f) (f (a) (b)) (bs)
+}
+
+def foldr[A,B] (f:A=>B=>B) (b:B) (xs:List[A]) : B = xs match {
+	case List()		=>	b
+	case (a::as)	=>	f (a) (foldr (f) (b) (as))
+}
+
+/*
+
+
+scala> filter((x:Int)=>x<5)(List(1,2,3,4,5,6,7,8,9))
+res830: List[Int] = List(1, 2, 3, 4)
+
+scala> l
+res829: List[Int] = List(2, 3, 4)
+
+scala> zipWith((x:Int)=>(y:Int)=>x+y)(l)(l)
+res828: List[Int] = List(4, 6, 8)
+
+scala> foldr ((x:Int)=>(y:Int)=>x+y)(0)(List(1,2,3,4,5,6,7,8,9,10))
+res825: Int = 55
+
+scala> foldl ((x:Int)=>(y:Int)=>x+y)(0)(List(1,2,3,4,5,6,7,8,9,10))
+res826: Int = 55
+*/
+
+
+/*
+ * So now I have two functions, isort and reverse that I can
+ * compose. Here I compose isort and reverse to sort and reverse.
+ *
+ * scala> val ir = isort _ --> reverse _
+   val ir = isort _ --> reverse _
+   ir: (List[Int]) => List[Int] = <function>
+   
+   scala> ir (5::3::8::2::Nil)
+   ir (5::3::8::2::Nil)
+   res13: List[Int] = List(8, 5, 3, 2)
+   
+   scala> 
+ */
+
+def myzip[A,B] (xs:List[A]) (ys:List[B]) : (List[(A,B)]) = (xs,ys) match {
+	case (List(), z) => List()
+	case ((x::xs1), List())		=> List()
+	case ((x::xs1),(y::ys1))	=> (x,y)::(myzip (xs1) (ys1))
+}
+
+/*
+	scala> myzip (1::2::3::Nil) (7::8::9::10::Nil)
+	myzip (1::2::3::Nil) (7::8::9::10::Nil)
+	res25: List[(Int, Int)] = List((1,7), (2,8), (3,9))
+
+scala> 
+*/
+
+/*
+ * Here is my map, followed by an example use and then a definition
+ * using partial application and mymap
+ */
+
+def mymap[A,B] (f: A=>B) (xs:List[A]) : List[B] = xs match {
+	case List()		=> List()
+	case (x::xs1)	=> f(x)::mymap (f) (xs1)
+}
+
+/*
+
+	scala> mymap ((x:Int) => x+1) (1::2::3::4::Nil)
+	mymap ((x:Int) => x+1) (1::2::3::4::Nil)
+	res15: List[Int] = List(2, 3, 4, 5)
+	
+	scala> 
+ */
+
+def hhh = mymap ((x:Int) => x+1) _
+
+/*
+ * And:
+	scala> hhh (1::2::3::4::5::Nil)
+	hhh (1::2::3::4::5::Nil)
+	res16: List[Int] = List(2, 3, 4, 5, 6)
+	
+	scala> 
+
+ */
+
+/*
+ * Part II
+ * Evaluator using an abstract class
+ */
+
+abstract class Expr {
+    def eval: Int
+}
+
+class Number(n:Int) extends Expr {
+    def eval: Int = n
+}
+
+class Sum(e1: Expr, e2: Expr) extends Expr {
+    def eval: Int = e1.eval + e2.eval
+}
+
+class Prod(e1: Expr, e2: Expr) extends Expr {
+    def eval: Int = e1.eval * e2.eval
+}
+
+/*
+
+Here I use the evaluator
+    scala> val n1 = new Number(5)
+    val n1 = new Number(5)
+    n1: Number = Number@194d4313
+    scala> val n2 = new Number(6)
+    val n2 = new Number(6)
+    n2: Number = Number@118ee2ee
+    scala> val n3 = new Sum(n1, n2)
+    val n3 = new Sum(n1, n2)
+    n3: Sum = Sum@3827de24
+    scala> val n4 = n3.eval
+    val n4 = n3.eval
+    n4: Int = 11
+    scala>
+*/
+
+
+abstract class Term
+case class Var(name: String) extends Term
+case class Abs(arg: String, body: Term) extends Term
+case class App(f: Term, v: Term) extends Term
+case class Const(f: String) extends Term
+
+
+def mem(x:String, xs:List[String]): Boolean = xs match {
+  case Nil => false
+  case y::ys => if (x == y) true else mem(x, ys)
+}
+
+def setdiff(xs:List[String], ys:List[String]):List[String] = xs match {
+  case Nil => Nil
+  case z::zs => if (ys.isEmpty) xs
+				else if (mem(z, ys)) setdiff(zs, ys)
+				else z::(setdiff(zs, ys))
+}
+
+def un(xs:List[String], ys:List[String]):List[String] = xs match {
+  case Nil => ys
+  case z::zs => if (ys.isEmpty) xs
+				else if (mem(z,ys))  un(zs,ys)
+				else z::(un(zs,ys))
+}
+
+def fv(m:Term) : List[String] = m match {
+  case Var(v) => v::Nil
+  case Abs(v,e) => setdiff((fv(e)),(v::Nil))
+  case App(e1,e2) => un(fv(e1),fv(e2))
+}
+
+
+def min(ys:List[String]): String = ys match {
+  case Nil => "x"
+  case x::Nil => x
+  case x::xs => val m = min(xs)
+				if (x < m) x else m
+}
+
+def fresh(vars:List[String]): String =  {
+	val a = "'"
+	val b = min(vars)
+	b.concat(a)
+}
+
+def sub(m:Term, x:Term, body:Term) : Term = (x,body) match {
+	case (Var(y), Var(v))		=> if (y == v) m else Var(v)
+	case (Var(y), App(e1, e2))	=> App(sub(m,x,e1), sub(m,x,e2))
+	case (Var(y), Abs(v,e))		=>	if (y==v) Abs(v,e)
+								else if (!mem(y,fv(e)) || !mem(v,fv(m)))
+									Abs(v, sub(m,x,e))
+								else {
+									val z = fresh(un(fv(m), fv(e)))
+									Abs (z, sub(m,x,sub(Var(z), Var(v), e)))
+								}
+}
+
+
+def reduce(term: Term) : Term = term match {
+  case Var(n)				=> Var(n)
+  case App((Abs(v,e)), e2)	=> sub(e2,Var(v),e)
+  case App(e1,e2)			=> App(reduce(e1), reduce(e2))
+  case Abs(v,e)				=> Abs(v, reduce(e))
+  case Const(f)				=> f match {
+	case "Pair"					=> Abs("x", Abs("y", Abs("p", App(App(Var("p"), Var("x")), Var("y")))))
+	case "Second"				=> Abs("p",App(Var("p"),Abs("a",Abs("b",Var("b")))))
+	case "First"				=> Abs("p",App(Var("p"),Abs("a",Abs("b",Var("a")))))
+
+  }
+}
+
+def reDuce(term: Term) : Term = if (reduce(term)==term) {
+	term
+	}else { reDuce(reduce(term)) }
+
+def cbn(term: Term) : Term = term match {
+	case Const(x)		=> Const(x)
+	case Var(x)			=> Var(x)
+	case Abs(x, e)		=> Abs(x, e)
+	case App(e1, e2)	=> cbn(e1) match {
+		case Abs(x, e)		=> cbn(sub(e2, Var(x), e))
+		case ee1 : Term		=> App(ee1,e2)
+	}
+}
+def nor(term: Term) : Term = term match {
+	case Const(x)		=> Const(x)
+	case Var(x)			=> Var(x)
+	case Abs(x, e)		=> Abs(x, (nor(e)))
+	case App(e1, e2)	=> cbn(e1) match {
+		case Abs(x, e)		=> nor(sub(e2, Var(x), e))
+		case ee1 : Term		=> App(nor(ee1), nor(e2))
+	}
+}
+
+
+def cbv(term: Term) : Term = term match {
+	case Const(x)		=> Const(x)
+	case Var(x)			=> Var(x)
+	case Abs(x, e)		=> Abs(x, e)
+	case App(e1, e2)	=> cbv(e1) match {
+		case Abs(x, e)		=> cbv(sub(cbv(e2), Var(x), e))
+		case ee1 : Term		=> App(ee1,cbv(e2))
+	}
+}
+def app(term: Term) : Term = term match {
+	case Const(x)		=> Const(x)
+	case Var(x)			=> Var(x)
+	case Abs(x, e)		=> Abs(x, (app(e)))
+	case App(e1, e2)	=> app(e1) match {
+		case Abs(x, e)		=> app(sub(app(e2), Var(x), e))
+		case ee1 : Term		=> App(ee1, app(e2))
+	}
+}
+
+
+
+
+def show(term: Term) : String = term match {
+	case Const(x)		=> x
+	case Var(x)			=> x
+	case Abs(x, e)		=> "\\" + x + " -> " + show(e)
+	case App(e1, e2)	=> "(" + show(e1) + " " + show(e2) + ")"
+}
+
+val pair  = Abs("x", Abs("y", Abs("p", App(App(Var("p"), Var("x")), Var("y")))))
+val first = Abs("p",App(Var("p"),Abs("a",Abs("b",Var("a")))))
+val scnd  = Abs("p",App(Var("p"),Abs("a",Abs("b",Var("b")))))
+val xy    = App(App(pair,Var("X")),Var("Y"))
+val Pr    = Const("Pair")
+val Fst   = Const("First")
+val Snd   = Const("Second")
+
+val zero = Abs("f", Abs("x", Var("x")))
+val one = Abs("f", Abs("x", App(Var("f"), Var("x"))))
+val add = Abs("n", Abs("m", Abs("f", Abs("x", App(App(Var("n"), Var("f")), App(App (Var("m"), Var("f")), Var("x")))))))
+
+
+
+val n = App ( Abs("x",App(App(Var("x"),one),one)),Const("Add") ) 
+
+/*
+
+scala> show(nor(App(App(add,one),one)))
+res898: String = \f -> \x -> (f (f x))
+
+scala> show(app(App(App(add,one),one)))
+res899: String = \f -> \x -> (f (f x))
+
+*/
+
+
+
+
+
+
+
+
+
+

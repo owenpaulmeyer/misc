@@ -1,0 +1,104 @@
+import qualified Data.Map as Map
+import Control.Monad.Reader
+import Data.Maybe
+import Control.Applicative
+
+data Exp =
+			Var Name |
+			Val Integer |
+			Add Exp Exp deriving Show
+
+
+type Name = String -- variable names
+
+type Value = Integer -- values
+type Env v = Map.Map Name v -- mapping from names to values
+
+
+fetch x env = Map.lookup x env
+
+eval :: Exp -> Env Integer -> Integer
+eval (Var x)   = do
+					x' <- fetch x
+					case x' of
+						(Just x'') -> return x''
+						Nothing    -> error "x"
+eval (Val i)   = return i
+eval (Add p q) = do
+					p' <- eval p
+					q' <- eval q
+					return (p' + q')
+
+eval' :: Exp -> Env Integer -> Maybe Integer
+eval' (Var x) env = do
+					x' <- fetch x env
+					return x'
+eval' (Val i) env = return i
+eval' (Add p q) e = do
+					p' <- eval' p e
+					q' <- eval' q e
+					return (p' + q')
+
+eval'' (Var x)   = do
+					x' <- asks (fetch x)
+					return x'
+eval'' (Val i)   = return (Just i)
+eval'' (Add p q) = do
+					p' <- eval'' p
+					q' <- eval'' q
+					return ((+) <$> p' <*> q')
+
+eval''' (Var x)   = do
+					x' <- asks (fetch x)
+					return x'
+eval''' (Val i)   = return (Just i)
+eval''' (Add p q) = do
+					p' <- eval''' p
+					q' <- eval''' q
+					return (do
+						p'' <- p'
+						q'' <- q'
+						return (p'' + q''))
+--(p' >>= \p'' -> q' >>= \q'' -> return (p'' + q''))
+
+
+samp = Add (Var "n") (Add (Val 5) (Var "r"))
+samp' = Add (Var "u") (Add (Val 5) (Var "r"))
+samap = Map.insert "n" 8 (Map.insert "r" 5 Map.empty)
+
+addStuff :: Int -> Int
+addStuff = do
+    a <- (*2)
+    b <- (+10)
+    return (a+b)
+
+
+
+type Bindings = Map.Map String Int;
+
+-- Returns True if the "count" variable contains correct bindings size.
+isCountCorrect :: Bindings -> Bool
+isCountCorrect bindings = runReader calc_isCountCorrect bindings
+
+-- The Reader monad, which implements this complicated check.
+calc_isCountCorrect :: Reader Bindings Bool
+calc_isCountCorrect = do
+    count <- asks (lookupVar "count")
+    bindings <- ask
+    return (count == (Map.size bindings))
+
+-- The selector function to  use with 'asks'.
+-- Returns value of the variable with specified name.
+lookupVar :: String -> Bindings -> Int
+lookupVar name bindings = fromJust (Map.lookup name bindings)
+
+sampleBindings = Map.fromList [("count",3), ("1",1), ("b",2)]
+
+main = do
+    putStr $ "Count is correct for bindings " ++ (show sampleBindings) ++ ": ";
+    putStrLn $ show (isCountCorrect sampleBindings);
+
+
+
+
+

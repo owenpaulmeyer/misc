@@ -1,0 +1,68 @@
+-- Stack.lhs - Stack module implemented as list
+
+>module Stack (Stack, makeStack, push, top, pop, isEmpty, len)
+>  where
+
+-----------------------------------------------------------------------------
+-- Specification
+-----------------------------------------------------------------------------
+
+-- Stack ADT signature
+
+>makeStack :: Stack t
+>push      :: t -> Stack t -> Stack t
+>top       :: Stack t -> t
+>pop       :: Stack t -> Stack t
+>isEmpty   :: Stack t -> Bool
+>len       :: Stack t -> Int
+
+-- Stack laws that must be obeyed
+
+--1a. if (isEmpty s)
+--      then pop s = error "pop: stack empty"
+--1b. if (isEmpty s)
+--      then top s = error "top: stack empty"
+--2.  if (not isEmpty s)
+--      then push (top s) (pop s) = s
+--3.  top (push t s) = t
+--4.  pop (push t s) = s
+--5.  isEmpty (makeStack) == True
+
+-----------------------------------------------------------------------------
+-- Private
+-----------------------------------------------------------------------------
+
+>newtype Stack t = StackC [t] deriving (Show, Read, Eq)
+>
+>makeStack = StackC []
+>
+>push a (StackC s) = StackC (a:s)
+>
+>top (StackC (a:as)) = a
+>top (StackC [])     = error "top: Stack Empty"
+>
+>pop (StackC (a:as)) = StackC as
+>pop (StackC [])     = error "pop: Stack Empty"
+>
+>isEmpty (StackC []) = True
+>isEmpty _  = False
+
+>len (StackC s) = length s
+
+------------- Stack Testing ------------------
+
+>t1 = push 5 makeStack
+>t2 = push 3 (push 4 t1)
+>t3 = pop t2
+>t4 = isEmpty t2
+>
+>-- Check laws
+>s = t2					-- StackC [3,4,5]
+>t = 7
+>law1a = pop (makeStack::Stack Int)      -- error
+>law1b = top (makeStack::Stack Int)      -- error
+>law2 = push (top s) (pop s)		-- StackC [3,4,5] (= s)
+>law3 = top (push t s)			-- 7 (= t) 
+>law4 = pop (push t s) 			-- StackC [3,4,5] (= s)
+>law5 = isEmpty makeStack		-- True
+

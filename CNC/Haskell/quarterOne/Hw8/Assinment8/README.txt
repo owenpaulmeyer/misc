@@ -1,0 +1,5 @@
+As an alternate to Part 5, I did a riff on monad transformers using the graph algorithms as an example.  First I wrote a monadic version of depth first and breadth first algorithms.  Then I implemented transformers on breadth first.  Finally I wrote a monadic transformer version of the Euler circuit algorithm.
+The functions {euler,outerLoop,oL,innerLoop} comprise the algorithm and each have the type:  Efs st1 st2 b a (specifically: :: (Show a, Ord a) => Efs [(a,a)] ([a],[a]) a [a] )
+This type provides the context of the nest of transformers.  A function with this type can use any of the monadic functions from the transformers library of the transformers in the type definition.  Additionaly, any monadic function with a generic type (such as:  :: Monad m => m a ) can be used within the functions with the type of a nest of transformers, as ghc derives the appropriate type signature from the generic (which is very difficult to do manually for some of these functions.)
+to run the algorithm, load GraphSe.hs into ghci from a and type:
+setEul <any one sample graphs: {g6,g7,g8,gdb,eulTest}>

@@ -1,0 +1,222 @@
+import Data.Char
+
+infixr 5 +++
+---------------------------------------------------------------
+{-
+Begin Midterm Section
+8.  I've added a tiny bit: a program consists of a series of
+	declarations followed by one expression.  a declaration
+	consists of: letter = integer. an expression is as on the
+	midterm.  to run a program type: runprogram "<some program>".
+	example: runprogram "n=5;j=2;m=9;+n*j-m4"
+	which evaluates to 15.0 (a float in case of division)
+
+Concrete Grammar for Expr:
+	Prog    ->   Decls Expr
+	Decls   ->   Letter = Integer; Decls | Lambda
+	Expr    ->   Op Expr Expr | Primary
+	Op      ->   + | - | * | /
+	Primary ->   Integer | Letter
+-}
+--Abstract Syntax:
+data Prog	= Pg Decls Expr deriving Show
+type Decls	= [Dec]
+data Dec	= Dc Char Float  deriving Show
+data Expr	= Ex Op Expr Expr | Val PrType  deriving Show
+data Op		= Op Oper  deriving Show
+data Oper	= Add | Sub | Mul | Div  deriving (Show,Eq)
+data PrType	= I Float | V Char  deriving Show
+--Parser:
+prog =  do {
+			ds <- decls;
+			e  <- expr;
+			return (Pg ds e)}
+
+decls = do {
+			ds <- many decl;
+			return ds}
+
+decl  = do {
+			l <- letter;
+			symbol "=";
+			n <- ints;
+			symbol ";";
+			return (Dc l (read n :: Float))}+++
+		do {
+			symbol ";";
+			return (Dc ' ' 0)}
+
+expr  = do {
+			o  <- op;
+			e1 <- expr;
+			e2 <- expr;
+			return (Ex o e1 e2)}+++
+		do {
+			p <- prim;
+			return (Val p)}
+
+prim  = do {
+			i <- int;
+			return (I i)}+++
+		do {
+			v <- var;
+			return (V v)}
+
+int   = do {n <- ints; return (read n :: Float)}
+var   = do {v <- letter; return v}
+
+op    = do {
+			o <- symbol "+";
+			return (Op Add)}+++
+		do {
+			o <- symbol "-";
+			return (Op Sub)}+++
+		do {
+			o <- symbol "*";
+			return (Op Mul)}+++
+		do {
+			o <- symbol "/";
+			return (Op Div)}
+
+runprogram p = case parse prog p of
+		[(a,"")] -> evaluate a
+		_  -> error "not OK"
+
+evaluate (Pg ds x) = eval x ds
+
+eval (Ex o e1 e2) ds = oper o (eval e1 ds) (eval e2 ds)
+eval (Val (I n)) _  = n
+eval (Val (V v)) ds = get v ds
+
+oper (Op o) 
+	|o==Add = (+)
+	|o==Sub = (-)
+	|o==Mul = (*)
+	|o==Div = (/)
+
+get v ds = head [n|(Dc a n) <- ds,a==v]
+--End Midterm Section
+
+----------------------------------------------------
+--the foundational parsers
+
+fails = P (\inp -> [])
+
+item :: Parser Char
+item = P (\inp -> case inp of
+					[]     -> []
+					(c:cs) -> [(c,cs)])
+
+------------------------------------------------------
+--some matching parsers; based in sat (some use many /
+--many1 from next section below)
+
+sat :: (Char -> Bool) -> Parser Char
+sat p = do {c <- item; if p c then return c else zero}
+
+char :: Char -> Parser Char
+char c = sat (c ==)
+
+digit :: Parser Char
+digit = sat isDigit
+
+letter :: Parser Char
+letter = sat isAlpha
+
+alphanum :: Parser Char
+alphanum = sat isAlphaNum
+
+space :: Parser String
+space = many (sat isSpace)
+
+nums :: Parser String
+nums = many1 digit
+
+ints = token nums
+
+letters :: Parser String
+letters = many1 letter
+
+string :: String -> Parser String
+string "" = return ""
+string (c:cs) = do {char c; string cs; return (c:cs)}
+
+token :: Parser a -> Parser a
+token p = do {space; a <- p; space; return a}
+
+symbol :: String -> Parser String
+symbol cs = token (string cs)
+
+-----------------------------------------------------
+--more advanced parsers;  
+
+--applies a parser zero or more times (like Kleene star in RE's)
+many :: Parser a -> Parser [a]
+many p = many1 p +++ return []
+
+--applies a parser one or more times (like + in RE's)
+many1 :: Parser a -> Parser [a]
+many1 p = do {a <- p; as <- many p; return (a:as)}
+
+sepby :: Parser a -> Parser b -> Parser [a]
+p `sepby` sep = (p `sepby1` sep) +++ return []
+
+sepby1 :: Parser a -> Parser b -> Parser [a]
+p `sepby1` sep = do {
+					a <- p;
+					as <- many (do {sep; p});
+					return (a:as)
+					}
+
+chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op a = (p `chainl1` op) +++ return a
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` op = do {a <- p; rest a}
+			where
+				rest a = (do
+							f <- op
+							b <- p
+							rest (f a b))
+						+++ return a
+
+--fails if the lambda case succeeds; otherwise succeeds with whatever
+--it consumed
+lookahead1 :: Parser String -> Parser String
+lookahead1 aA = do {a <- aA;
+					if a=="" then fails else return a}
+
+-----------------------------------------------------
+--The underlying structure of the parser monad
+
+class Monad m => MonadZero m where
+	zero :: m a
+
+class  MonadZero m => MonadPlus m where
+	mplus :: m a -> m a -> m a
+
+instance MonadZero Parser where
+	zero = P (\inp -> [])
+
+instance MonadPlus Parser where
+	p `mplus` q = P (\inp -> parse p inp ++ parse q inp)
+
+newtype Parser a = P {parse :: String -> [(a,String)]}
+
+instance Functor Parser where
+	fmap f p = P (\inp -> case parse p inp of
+								[]        -> []
+								[(v,out)] -> [(f v,out)] )
+
+join' p = P (\inp -> case parse p inp of
+						[]        -> []
+						[(v,out)] -> parse v out)
+
+instance Monad Parser where
+	return a = P (\inp -> [(a,inp)])
+	p >>= f  = join' . fmap f $ p
+
+p1 +++ p2 = P (\inp -> case parse (p1 `mplus` p2) inp of
+						[] -> []
+						(x:xs) -> [x] )
+

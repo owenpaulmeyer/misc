@@ -1,0 +1,182 @@
+import qualified Data.Map as Map
+import Data.Maybe
+
+import Control.Applicative
+
+{-
+class Applicative f where
+	pure :: a -> f a
+	(<*>) :: f (a -> b) -> f a -> f b
+
+
+
+
+instance Applicative (Either e) where
+	pure a = Right a
+	(Right f) <*> (Right x) = Right (f x)
+	(Left x) <*> _ = Left x
+	_ <*> (Left x) = Left x
+
+instance Applicative Maybe where
+	pure a = Just a
+	(Just f) <*> (Just x) = Just (f x)
+	Nothing <*> _ = Nothing
+	_ <*> Nothing = Nothing
+
+instance Applicative IO where
+	pure a = return a
+	f <*> a = do
+				f' <- f
+				a' <- a
+				return (f' a')
+
+instance Applicative ((->) env) where
+	pure = const
+	f <*> p = (\env -> (f env)(p env) )
+-}
+data Exp =
+			Var Name |
+			Val Integer |
+			Add Exp Exp deriving Show
+
+
+type Name = String -- variable names
+
+type Value = Integer -- values
+type Env v = Map.Map Name v -- mapping from names to values
+
+
+eval :: Exp -> Env Integer -> Integer
+eval (Var x) e   = fromJust (Map.lookup x e)
+eval (Val i) _   = i
+eval (Add p q) e = (eval p e) + (eval q e)
+
+eval' :: Exp -> Env Integer -> Integer
+eval' (Var x) = fetch x
+eval' (Val i) = pure i
+eval' (Add p q) = pure (+) <*> (eval' p) <*> (eval' q)
+
+eva (Var x) e = Map.lookup x e
+eva (Val i) e = Just i
+eva (Add p q) e = case eva p e of
+					Nothing -> error "im stewed"
+					Just x  ->
+						case eva q e of
+							Nothing -> error "im cooked"
+							Just y  -> Just (x + y)
+
+eva' :: Exp -> Env Integer -> Maybe Integer
+eva' (Var x) e   = Map.lookup x e
+eva' (Val i) e   = Just i
+eva' (Add p q) e = pure (+) <*> (eva' p e) <*> (eva' q e)
+
+
+fetch x = (\env -> fromJust (Map.lookup x env) )
+
+eval'' :: Exp -> Env Integer -> Maybe Integer
+eval'' (Var x) = fetch' x
+eval'' (Val i) = value i
+eval'' (Add p q) = pure (pure (+)) `comp` (eval'' p) `comp` (eval'' q)
+
+fetch' x env = Map.lookup x env
+value x env  = Just x
+
+samp = Add (Var "n") (Add (Val 5) (Var "r"))
+samp' = Add (Var "u") (Add (Val 5) (Var "r"))
+samap = Map.insert "n" 8 (Map.insert "r" 5 Map.empty)
+
+--from the ghci prompt:
+--h' <$> getLine <*> getLine -- == liftA2 h' getLine getLine
+
+h' = (\inp inp' -> liftA2 (++)
+			(if (inp == "rat") then (Just "rat") else Nothing)
+			(if (inp' == "cheese") then (Just "cheese") else Nothing) )
+
+h'' = (\inp -> liftA rat
+		(if (inp == "0") then (Just 1) else Nothing )
+		)
+
+--rat = (\a -> [a])
+
+rat = h'' <$> getLine
+
+h = f (Just (+1))
+a = (\n -> f (g n))
+
+--g :: a -> Maybe a
+g = (\a ->
+	if (a > 0)
+		then  (Just a)
+		else  Nothing)
+
+f (Just a) = Right (Just a)
+f Nothing  = Left "failState"
+
+-- pure f <*> a <*> b == liftA2 f a b
+
+iof :: IO (Int -> Int)
+iof = return (+1)
+
+iop :: IO Int
+iop = getInt
+
+getInt = do
+		r <- getLine
+		return (read r :: Int)
+{-
+hh :: Maybe (IO (Int -> Int))
+hh
+	|
+
+-}
+
+hha = do
+		n <- getInt
+		return n
+
+
+comp :: (Applicative f1, Applicative f) =>
+     f (f1 (a -> b)) -> f (f1 a) -> f (f1 b)
+comp = liftA2 (<*>)
+
+--liftA2 f a b = pure f <*> a <*> b
+
+{-
+
+instance Functor (Either e) where
+	fmap f (Right x) = Right (f x)
+	fmap _ (Left  x) = Left x
+
+instance Applicative (Either e) where
+	pure a = Right a
+	(Right f) <*> (Right x) = Right (f x)
+	(Left x) <*> _ = Left x
+	_ <*> (Left x) = Left x
+
+Prove:
+
+	fmap g x = pure g <*> x
+
+left hand side:
+
+	fmap g (Right x)
+		= Right (g x)				-definition of fmap for (Either e)
+	fmap g (Left  e)
+		= Left e					-definition of fmap for (Either e)
+
+right hand side:
+
+	pure g <*> (Right x)
+		= Right g <*> Right x		-definition of pure for (Either e)
+		= Right (g x)				-definition of (<*>) for (Either e)
+	pure g <*> Left e
+		= Right g <*> Left e		-definition of pure for (Either e)
+		= Left e
+
+
+
+
+
+
+
+-}

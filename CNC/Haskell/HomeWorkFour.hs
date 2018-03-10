@@ -1,0 +1,212 @@
+
+infixl 4 <*>
+infixl 1 >=>
+
+-- (>>=) :: m a -> (a -> m b) -> m b
+
+
+
+--1.)
+
+instance Monad (Either e) where
+	return a = Right a
+	Left e >>= _  = Left e
+	Right a >>= f = f a
+
+{-
+
+laws for Monads:
+	(i)		return a >>= k = k a
+	(ii)	m >>= return   = m
+	(iii)	m >>= (\x -> k x >>= h) = (m >>= k) >>= h
+
+prove for (Either e)
+
+(i)
+left hand side:
+	return a >>= k
+		= Right a >>= k
+		= k a
+
+right hand side:
+	k a
+
+(ii)
+Left e  >>= return
+		= Left e
+Right a >>= return
+		= return a
+		= Right a
+
+(iii)
+left hand side:
+	Left e >>= (\x -> k x >>= h)
+		= Left e
+	Right a >>= (\x -> k x >>= h)
+		= (\x -> k x >>= h) a
+		= k a >>= h
+			case (k a) of
+				Left x  -> Left x
+				Right y -> h y
+
+right hand side:
+	(Left e >>= k) >>= h
+		= Left e >>= h
+		= Left e
+	(Right a >>= k) >>= h
+		= k a >>= h
+			case (k a) of
+				Left x  -> Left x
+				Right y -> h y
+
+
+
+-}
+
+--2.)
+
+myap :: Monad m => m (a -> b) -> m a -> m b
+myap mf ma = do
+	f <- mf
+	a <- ma
+	return (f a)
+
+mysequence :: Monad m => [m a] -> m [a]
+mysequence []     = return []
+mysequence (m:ms) = do
+	a <- m
+	rest <- mysequence ms
+	return (a:rest)
+
+mymap :: Monad m => (a -> m b) -> [a] -> m [b]
+mymap f as = mysequence $ map f as
+	
+
+(>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+mb >=> mc = (\a ->
+	do
+		b' <- mb a
+		c' <- mc b'
+		return c' )
+
+join :: Monad m => (m (m a) -> m a)
+join mma = do
+	ma <- mma
+	a  <- ma
+	return a
+
+--3.)
+
+--fmap f a = pure' f <*> a
+
+class Functor f => Applicative f where
+	pure'  :: a -> f a
+	(<*>) :: f (a -> b) -> f a -> f b
+
+sequence' :: Applicative f => [f a] -> f [a]
+sequence' (a:as) = fmap (:) a <*> sequence' as
+
+mapA :: Applicative f => (a -> f b) -> [a] -> f [b]
+mapA fb as = sequence' $ map fb as
+
+--4.)
+
+class Functor j => Joinad j where
+	joiN :: j (j a) -> j a
+	return' :: a -> j a
+
+--5.)
+{-
+
+(i) p >>= f == joiN . fmap f $ p
+
+-}
+--6.)
+
+instance Joinad (Either e) where
+	return' a = Right a
+	joiN (Right (Right a)) = Right a
+	joiN (Left x) = Left x
+
+{-
+
+
+(i)
+left hand side:
+	Left e >>= _  = Left e
+	Right a >>= f = f a
+
+right hand side:
+	(\p' f' -> (joiN . fmap f') p') (Right a) f
+		= joiN (fmap f (Right a))
+		= joiN (Right (f a))
+		= f a
+
+-}
+
+--7.)
+
+joinAp :: Joinad j => j (a -> b) -> j a -> j b
+joinAp f v = f `binD` \f' -> v `binD` \v' -> return' (f' v')
+
+joinSequence :: Joinad j => [j a] -> j [a]
+joinSequence []     = return' []
+joinSequence (j:js) = j `binD` \j' -> (joinSequence js) `binD` \js' ->
+		return' (j':js')
+
+joinMap :: Joinad j => (a -> j b) -> [a] -> j [b]
+joinMap f as = joinSequence $ map f as
+
+binD :: Joinad j => j a -> (a -> j b) -> j b
+p `binD` f = (joiN . fmap f) p
+
+fisch :: Joinad j => (a -> j b) -> (b -> j c) -> (a -> j c)
+fisch jb jc =
+		\a  -> jb a `binD`
+		\b' -> jc b' `binD`
+		\c' -> return' c'
+
+--8.)
+
+class Functor f => FishNad f where
+	goFish :: a -> f a -- return
+	fish :: (a -> f b) -> (b -> f c) -> a -> f c -- >=>
+
+
+--9.)
+
+instance Functor (Either e) where
+	fmap _ (Left  e) = Left e
+	fmap f (Right a) = Right (f a)
+
+
+instance FishNad (Either e) where
+	goFish a = Right a
+	fb `fish` fc = (\a ->
+			case fb a of
+				Left x  -> Left x
+				Right b -> case fc b of
+					Left x  -> Left x
+					Right c -> Right c )
+						
+--10.)
+
+bindF :: FishNad f => f a -> (a -> f b) -> f b
+--p `bindF` f = (\a -> p) `fish` (\b -> f b) $ id
+p `bindF` f = joinF . fmap f $ p
+
+
+joinF :: FishNad f => f (f a) -> f a
+--joinF ffa = ffa `bindF` \fa -> fa
+joinF ffa = (\a -> ffa) `fish` (\b -> b) $ Nothing
+
+
+
+
+instance FishNad [] where
+	goFish a = [a]
+	f `fish` g = (\a ->
+			case f a of
+				[]     -> []
+				as -> concat (map g as) )
+
