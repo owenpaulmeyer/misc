@@ -1,0 +1,53 @@
+CONCRETE SYNTAX FOR PCONS
+
+Program -> Alias+
+
+Alias -> LETF | LETREC | TLETREC
+
+LETF   ->  Name {Arg} '=' Exp;
+LETREC -> 'Letrec' Name {Arg} '=' Exp;
+TLETREC -> 'TLetrec' Name {Arg} '=' Exp;
+
+-------- Purity --------
+
+Exp -> App | Lam | Var | Let | Case | Name | (Exp) | BinSugar | List | Value | Oper
+
+App -> Exp Exp
+
+Lam -> 'L' Var '.' Exp
+
+Var -> Name
+
+Let -> 'Let' Binding 'in' Exp
+
+Case -> 'Case' Exp 'of' {Exp '->' Exp}
+
+======== Sugar ========
+
+BinSugar -> Exp (Oper) Exp 
+
+======== Constants (Impure) =========
+
+Value -> Int | Char | Bool | Pair | List
+
+Pair -> (Exp, Exp)
+
+List -> [{Exp ','} Exp] | [] 
+
+Num -> Digit+ ['.' Digit+] | '.' Digit+
+
+Char -> ( 'a' | 'b' .. | 'Y' | 'Z' )
+
+Bool -> True | False
+
+Oper -> '+' | '-' | '*' | '/' |
+		'>' | '<' | '==' | '<=' | '>='
+			'^' | '~' | ':'
+
+======== Bits =======
+
+Digit -> { '1' | '2' ... | '9' | '0' }
+
+Name -> Char+
+
+App (App (+) Exp) Exp

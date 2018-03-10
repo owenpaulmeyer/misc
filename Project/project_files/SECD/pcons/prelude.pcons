@@ -1,0 +1,119 @@
+id x = x;
+
+add x y = x+y;
+
+sub x y = x+y;
+
+mul x y = x*y;
+
+div x y = x/y;
+
+uncurry f (x,y) = f x y;
+
+curry f x y = f (x,y);
+
+fst (x,y) = x;
+
+snd (x,y) = x;
+
+min x y = if (x<y) then (x) else (y);
+
+max x y = if (x>y) then (x) else (y);
+
+Letrec map f as = case (as) of
+	[] -> ([])
+	(x:xs) -> ((f x:(map f xs)));
+
+Letrec filter p xs = case (xs) of
+	[] -> ([])
+	(x:xs) -> (if (p x) then (x:(filter p xs)) else (filter p xs));
+
+Letrec foldl f v as = case (as) of
+	[] -> (v)
+	(x:xs) -> (foldl f (f v x) xs);
+
+Letrec foldr f b as = case (as) of
+	[] -> (b)
+	(x:xs) -> (f x (foldr f b xs));
+
+Letrec foldr1 f (x:xs) = case (xs) of
+	[] -> (x) 
+	ys -> (f x (foldr1 f xs));
+
+and xs = foldr1 (\x.\y. x&&y) xs;
+
+or xs = foldr1 (\x.\y. x||y) xs;
+
+all f = (and..map f);
+
+any f = (or..map f); 
+
+elem x = any (\a.a==x);
+
+head (x:xs) = x;
+
+tail (x:xs) = xs;
+
+Letrec last (x:xs) = case (xs) of
+	[] -> (x)
+	zs -> (last xs);
+
+Letrec last (x:xs) = case (xs) of
+	[] -> (x)
+	y -> (last xs);
+
+Letrec bang n (x:xs) = case (n) of
+	0 -> (x)
+	y -> (bang (n-1) xs);
+
+Letrec null xs = case (xs) of
+	[] -> (true)
+	ys -> (false);
+
+Letrec take n xs = case (n) of
+	0 -> ([])
+	z -> (case (xs) of
+		[] -> ([])
+		(y:ys) -> (y:(take (n-1) ys)));
+
+Letrec takeWhile p xs = case (xs) of
+	[] -> ([])
+	(y:ys) -> (if (p y) then (y:(takeWhile p ys)) else ([]));
+
+Letrec drop n xs = case (n) of
+	0 -> (xs)
+	z -> (case (xs) of
+		[] -> ([])
+		(y:ys) -> (drop (n-1) ys));
+
+Letrec dropWhile p xs = case (xs) of
+	[] -> ([])
+	(y:ys) -> (if (p y) then (dropWhile p ys) else (ys));
+
+splitAt n xs = ((take n xs), (drop n xs));
+
+span p xs = ((takeWhile p xs), (dropWhile p xs));
+
+reverse = foldl (\xs.\x.x:xs) [];
+
+Letrec zip xss yss = case (xss) of
+	[] -> ([])
+	(x:xs) -> (case (yss) of
+		[] -> ([])
+		(y:ys) -> ((x<>y):(zip xs ys)));
+
+Letrec append xs ys = case (xs) of
+	[] -> (ys)
+	(x:xs) -> (x:append xs ys);
+
+concat = foldr append [];
+
+minimum = foldr1 min;
+
+maximum = foldr1 max;
+
+sum = foldr1 (\x.\y.x+y);
+
+product = foldr1 (\x.\y.x*y);
+
+length = foldr (\x.\y.y+1) 0;
