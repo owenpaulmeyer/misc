@@ -1,0 +1,105 @@
+From 2788c8259f4bbc7c4e175f1e55ef3ae33cad8fb1 Mon Sep 17 00:00:00 2001
+From: Owen Meyer <owenpaulmeyer@gmail.com>
+Date: Jan 28, 2014 11:33:24 PM
+
+element tree sturf
+
+
+diff --git a/src/gds/resources/EditElement.java b/src/gds/resources/EditElement.java
+index d062b66..1ede9bd 100644
+--- a/src/gds/resources/EditElement.java
++++ b/src/gds/resources/EditElement.java
+@@ -19,13 +19,21 @@
+         int originY;        //used for painting
+         int module = 40;    //used for painting
+         Element element = new Element();
+-        Element selected;
++        Element selection;
++        Element addable;
++        
++        public void setAddable( Element e ){
++            addable = e;
++        }
++        public void setSelection( Element e ){
++            selection = e;
++        }
+         
+         public void addEmpty( Location l ) {
+             element.addChild( Element.empty(), l );
+         }
+-        public void select( Location l ) {
+-            
++        public void addElement( Location l, Element e ){
++            element.addChild( e, l);
+         }
+         
+         
+diff --git a/src/gds/resources/Element.java b/src/gds/resources/Element.java
+index 11b03cb..6188986 100644
+--- a/src/gds/resources/Element.java
++++ b/src/gds/resources/Element.java
+@@ -48,6 +48,12 @@
+     }
+     
+     @Override
++    public String toString(  ) {
++        if ( isEmpty() ) return "Empty";
++        else return "";
++    }
++    
++    @Override
+     public boolean equals(Object obj) {
+         if (obj == this) {
+             return true;
+diff --git a/src/gds/resources/GDS.form b/src/gds/resources/GDS.form
+index edacf0a..3ee583f 100644
+--- a/src/gds/resources/GDS.form
++++ b/src/gds/resources/GDS.form
+@@ -443,7 +443,7 @@
+                           <AuxValues>
+                             <AuxValue name="JavaCodeGenerator_CreateCodeCustom" type="java.lang.String" value="new javax.swing.JTree(treeModel)"/>
+                             <AuxValue name="JavaCodeGenerator_CreateCodePre" type="java.lang.String" value="treeModel = new DefaultTreeModel(rootNode);&#xa;treeModel.addTreeModelListener(new MyTreeModelListener());"/>
+-                            <AuxValue name="JavaCodeGenerator_InitCodePre" type="java.lang.String" value="elementTree.setEditable(true);&#xa;elementTree.getSelectionModel().setSelectionMode&#xa;        (TreeSelectionModel.SINGLE_TREE_SELECTION);&#xa;elementTree.setShowsRootHandles(true);"/>
++                            <AuxValue name="JavaCodeGenerator_InitCodePre" type="java.lang.String" value="elementTree.setEditable(true);&#xa;elementTree.getSelectionModel().setSelectionMode&#xa;        (TreeSelectionModel.SINGLE_TREE_SELECTION);&#xa;elementTree.addTreeSelectionListener(new TreeSelectionListener() {&#xa;    public void valueChanged(TreeSelectionEvent e) {&#xa;        DefaultMutableTreeNode node = (DefaultMutableTreeNode)&#xa;                           elementTree.getLastSelectedPathComponent();&#xa;        if (node == null) return;&#xa;        Element elem = (Element)node.getUserObject();&#xa;        edit.setSelection( elem );&#xa;    }&#xa;});&#xa;elementTree.setShowsRootHandles(true);"/>
+                           </AuxValues>
+                         </Component>
+                       </SubComponents>
+diff --git a/src/gds/resources/GDS.java b/src/gds/resources/GDS.java
+index 03acb77..5199b3c 100644
+--- a/src/gds/resources/GDS.java
++++ b/src/gds/resources/GDS.java
+@@ -15,6 +15,8 @@
+ import java.awt.Cursor;
+ import java.awt.Graphics2D;
+ import javax.swing.event.MouseInputAdapter;
++import javax.swing.event.TreeSelectionEvent;
++import javax.swing.event.TreeSelectionListener;
+ import javax.swing.tree.DefaultMutableTreeNode;
+ import javax.swing.tree.DefaultTreeModel;
+ import javax.swing.tree.TreeSelectionModel;
+@@ -238,6 +240,15 @@
+         elementTree.setEditable(true);
+         elementTree.getSelectionModel().setSelectionMode
+         (TreeSelectionModel.SINGLE_TREE_SELECTION);
++        elementTree.addTreeSelectionListener(new TreeSelectionListener() {
++            public void valueChanged(TreeSelectionEvent e) {
++                DefaultMutableTreeNode node = (DefaultMutableTreeNode)
++                elementTree.getLastSelectedPathComponent();
++                if (node == null) return;
++                Element elem = (Element)node.getUserObject();
++                edit.setSelection( elem );
++            }
++        });
+         elementTree.setShowsRootHandles(true);
+         elementTree.setBackground(new java.awt.Color(210, 210, 210));
+         elementTree.setBorder(javax.swing.BorderFactory.createEtchedBorder());
+@@ -728,7 +739,8 @@
+     Grid grid = new Grid();
+     BackgroundImage backgroundImage = new BackgroundImage();
+     EditElement edit = new EditElement();
+-    DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode("Element");
++    //the root of elementTree
++    DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(Element.empty());
+     DefaultTreeModel treeModel;
+     
+ }
